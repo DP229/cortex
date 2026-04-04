@@ -1,0 +1,25 @@
+services:
+  # Cortex API Server
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./wiki:/app/wiki
+      - ./raw:/app/raw
+      - ./.cortex:/root/.cortex
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    restart: unless-stopped
+
+  # Optional: Qdrant for large wikis (>1000 articles)
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   ports: ["6333:6333"]
+  #   volumes: ["qdrant_data:/qdrant/storage"]
+  #   restart: unless-stopped
+
+# volumes:
+#   qdrant_data:

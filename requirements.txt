@@ -1,0 +1,26 @@
+# Core
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pyyaml>=6.0
+nest-asyncio>=1.5.0
+
+# Optional: Cloud LLM providers
+openai>=1.0.0
+anthropic>=0.8.0
+
+# Optional: Distributed memory
+redis>=5.0.0
+
+# Optional: Vector database
+qdrant-client>=1.7.0
+
+# Optional: Embeddings
+sentence-transformers>=2.2.0
+
+# Optional: Ingest pipeline
+pdfplumber>=0.10.0
+trafilatura>=1.6.0
+
+# Optional: Monitoring
+prometheus-client>=0.19.0
