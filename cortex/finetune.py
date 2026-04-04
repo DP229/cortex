@@ -14,7 +14,6 @@ Usage:
 import json
 import random
 from pathlib import Path
-from typing import List, Dict, Optional
 import logging
 
 from cortex.knowledgebase import KnowledgeBase

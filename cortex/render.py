@@ -13,7 +13,6 @@ Usage:
     renderer.render_matplotlib(python_code, "chart.png")
 """
 
-import os
 import re
 import subprocess
 import hashlib

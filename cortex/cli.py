@@ -16,8 +16,7 @@ import os
 import sys
 import json
 import time
-import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,16 +24,15 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cortex import (
-    Agent, Memory, Brain,
+    Memory, Brain,
     Orchestrator, AgentSpec,
-    create_agent, create_coder_agent, create_kb_agent,
-    ModelRegistry, ModelProvider,
+    create_agent, create_kb_agent,
+    ModelProvider,
     KnowledgeBase,
 )
 from cortex.config import CortexConfig
 from cortex.ingest import IngestPipeline
 from cortex.query_agent import QueryAgent
-from cortex.compile_wiki import WikiCompiler
 from cortex.render import OutputRenderer
 
 
@@ -454,7 +452,7 @@ class CortexCLI:
         
         if not self.config.json_output:
             stats = results["stats"]
-            print(f"\n🔧 Wiki Maintenance Complete")
+            print("\n🔧 Wiki Maintenance Complete")
             print(f"   📊 Articles: {stats['total_articles']}")
             print(f"   📝 Words: {stats['total_words']:,}")
             print(f"   📂 Categories: {', '.join(stats['categories'])}")
@@ -463,7 +461,7 @@ class CortexCLI:
             
             if lint and "health" in results:
                 health = results["health"]
-                print(f"\n🏥 Health Check:")
+                print("\n🏥 Health Check:")
                 print(f"   ❌ Errors: {health['by_severity'].get('error', 0)}")
                 print(f"   ⚠️  Warnings: {health['by_severity'].get('warning', 0)}")
                 print(f"   ℹ️  Info: {health['by_severity'].get('info', 0)}")
@@ -473,7 +471,7 @@ class CortexCLI:
                         print(f"   {icon} [{issue['type']}] {issue['article']}: {issue['message']}")
             
             if suggest and results.get("suggestions"):
-                print(f"\n💡 Suggested new articles:")
+                print("\n💡 Suggested new articles:")
                 for s in results["suggestions"][:10]:
                     print(f"   • {s}")
         

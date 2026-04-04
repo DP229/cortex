@@ -20,13 +20,12 @@ import hashlib
 import sqlite3
 import threading
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Callable, Iterator
+from typing import Optional, List, Dict, Any
 from enum import Enum
-from datetime import datetime
 from contextlib import contextmanager
 import logging
 
-from cortex.embeddings import Embedder, encode, get_embedder
+from cortex.embeddings import get_embedder
 
 logger = logging.getLogger(__name__)
 
@@ -668,8 +667,8 @@ class Memory:
             self.vector_store.clear()
         elif older_than_days:
             # Clear old memories
-            cutoff = time.time() - (older_than_days * 24 * 60 * 60)
-            with self._get_connection() as conn:
+            time.time() - (older_than_days * 24 * 60 * 60)
+            with self._get_connection():
                 # This would need to be implemented
                 pass
         else:
@@ -706,10 +705,9 @@ class Memory:
         with self._get_connection() as conn:
             rows = conn.execute("SELECT * FROM memories").fetchall()
             for row in rows:
-                embedding = None
                 if row["embedding"]:
                     try:
-                        embedding = json.loads(row["embedding"])
+                        json.loads(row["embedding"])
                     except (json.JSONDecodeError, TypeError):
                         pass
                 memories.append({

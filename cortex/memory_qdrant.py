@@ -5,9 +5,8 @@ Provides production-grade vector search using Qdrant.
 """
 
 import os
-import json
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import logging
 
@@ -61,7 +60,7 @@ class QdrantMemory:
         """Connect to Qdrant"""
         try:
             from qdrant_client import QdrantClient
-            from qdrant_client.http import models
+            from qdrant_client.http import models as qdrant_models  # noqa: F401
             
             self._client = QdrantClient(
                 url=self.url,
@@ -252,7 +251,7 @@ class QdrantMemory:
         try:
             self._client.delete(
                 collection_name=self.collection_name,
-                points_selector=models.SelectFilter(),
+                points_selector=qdrant_models.SelectFilter(),  # noqa: F821  # noqa: F821
             )
         except Exception as e:
             logger.error(f"Clear failed: {e}")

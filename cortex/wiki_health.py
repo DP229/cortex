@@ -15,10 +15,9 @@ Usage:
     suggestions = checker.suggest_new_articles()
 """
 
-import os
 import re
 import time
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict
 from dataclasses import dataclass
 import logging
 
@@ -67,7 +66,7 @@ class WikiHealthChecker:
                         severity="error",
                         article=article.path,
                         message=f"Broken link to: {link}",
-                        suggestion=f"Create the article or remove the link",
+                        suggestion="Create the article or remove the link",
                     ))
         
         return issues

@@ -3,7 +3,7 @@ import pytest
 import tempfile
 from pathlib import Path
 from cortex.knowledgebase import KnowledgeBase
-from cortex.wiki_health import WikiHealthChecker, HealthIssue
+from cortex.wiki_health import WikiHealthChecker
 
 
 @pytest.fixture

@@ -8,7 +8,6 @@ Provides:
 - Performance profiling
 """
 
-import os
 import time
 import json
 from typing import Any, Dict, List, Optional
@@ -161,10 +160,10 @@ class MetricsCollector:
                     "min": min(latencies) if latencies else 0,
                     "max": max(latencies) if latencies else 0,
                     "avg": sum(latencies) / len(latencies) if latencies else 0,
-                    "p50": self._percentile([float(l) for l in latencies], 50),
-                    "p90": self._percentile([float(l) for l in latencies], 90),
-                    "p95": self._percentile([float(l) for l in latencies], 95),
-                    "p99": self._percentile([float(l) for l in latencies], 99),
+                    "p50": self._percentile([float(x) for x in latencies], 50),
+                    "p90": self._percentile([float(x) for x in latencies], 90),
+                    "p95": self._percentile([float(x) for x in latencies], 95),
+                    "p99": self._percentile([float(x) for x in latencies], 99),
                 },
                 "tokens": {
                     "total": self._total_tokens,

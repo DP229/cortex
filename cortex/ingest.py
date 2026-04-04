@@ -15,12 +15,11 @@ Usage:
     results = pipeline.ingest_directory("path/to/folder/")
 """
 
-import os
 import re
 import json
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import List
 from dataclasses import dataclass, field
 import logging
 

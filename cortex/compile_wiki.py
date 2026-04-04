@@ -12,9 +12,7 @@ Usage:
     result = compiler.compile_document(ingest_result)
 """
 
-import re
-import time
-from typing import List, Dict, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 import logging
 
@@ -158,7 +156,7 @@ Format as markdown."""
         """Compile all unprocessed documents"""
         summaries = self.kb.list_articles(category="summaries")
         concepts = self.kb.list_articles(category="concepts")
-        concept_titles = {c.title.lower() for c in concepts}
+        {c.title.lower() for c in concepts}
         
         results = []
         for summary in summaries:

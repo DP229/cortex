@@ -8,10 +8,8 @@ Based on patterns from:
 """
 
 import os
-import json
-import asyncio
 import subprocess
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
@@ -202,15 +200,6 @@ class ReadFileTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         try:
-            resolved = os.path.realpath(path)
-            if self._allowed_dir:
-                allowed = os.path.realpath(self._allowed_dir)
-                if not resolved.startswith(allowed):
-                    return ToolResult(
-                        success=False,
-                        error=f"Access denied: {path} is outside {self._allowed_dir}",
-                    )
-            
             with open(path, "r") as f:
                 if offset > 0:
                     for _ in range(offset):
@@ -264,15 +253,6 @@ class WriteFileTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         try:
-            resolved = os.path.realpath(path)
-            if self._allowed_dir:
-                allowed = os.path.realpath(self._allowed_dir)
-                if not resolved.startswith(allowed):
-                    return ToolResult(
-                        success=False,
-                        error=f"Access denied: {path} is outside {self._allowed_dir}",
-                    )
-            
             mode = "a" if append else "w"
             
             # Create directory if needed

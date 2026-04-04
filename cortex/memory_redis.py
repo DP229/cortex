@@ -7,7 +7,7 @@ Provides Redis-backed memory for distributed, multi-agent scenarios.
 import os
 import json
 import time
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)

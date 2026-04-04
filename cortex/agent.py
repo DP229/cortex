@@ -8,19 +8,18 @@ Inspired by patterns from:
 - AutoGen (Microsoft) - Multi-agent orchestration
 """
 
-import os
 import json
 import time
 import asyncio
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from cortex.brain import Brain, ModelConfig, ModelProvider
-from cortex.memory import Memory, MemoryEntry
+from cortex.brain import Brain, ModelConfig
+from cortex.memory import Memory
 from cortex.tools import (
-    ToolRegistry, ToolDefinition, ToolResult, create_default_tools
+    ToolRegistry, ToolResult, create_default_tools
 )
 
 logger = logging.getLogger(__name__)
@@ -579,7 +578,6 @@ def create_kb_agent(
     memory=None,
 ) -> Agent:
     """Create an agent specialized for knowledge base operations"""
-    from cortex.knowledgebase import KnowledgeBase
     from cortex.tools import ToolRegistry, create_default_tools
     from cortex.wiki_tools import create_wiki_tools
 

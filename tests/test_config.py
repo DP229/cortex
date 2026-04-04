@@ -1,5 +1,4 @@
 """Tests for config"""
-import pytest
 import tempfile
 import os
 from cortex.config import CortexConfig
@@ -10,7 +9,7 @@ def test_default_config():
     assert config.wiki.path == "./wiki"
     assert config.llm.provider == "ollama"
     assert config.llm.model == "llama3"
-    assert config.security.bash_enabled == False
+    assert not config.security.bash_enabled
 
 
 def test_config_save_load():

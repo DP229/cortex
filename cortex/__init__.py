@@ -20,7 +20,7 @@ from cortex.agent import (
     create_researcher_agent,
 )
 
-from cortex.memory import Memory, MemoryEntry, MemoryType, MemoryImportance
+from cortex.memory import Memory, MemoryEntry, MemoryType
 
 from cortex.brain import (
     Brain,

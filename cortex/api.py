@@ -11,24 +11,22 @@ Run:
     uvicorn cortex.api:app --reload --port 8080
 """
 
-import os
 import time
-from typing import Optional, List, Any
+from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import uvicorn
 
 from cortex import (
-    Agent, Memory, Brain,
+    Memory, Brain,
     Orchestrator, AgentSpec,
     create_agent,
 )
-from cortex.metrics import get_metrics
-from cortex.optimizer import get_optimizer, CostOptimizer
-from cortex.retry import HealthCheck, CircuitBreaker
+from cortex.optimizer import get_optimizer
+from cortex.retry import HealthCheck
 
 
 # === Lifespan ===

@@ -10,8 +10,8 @@ Provides:
 
 import time
 import asyncio
-from typing import Any, Callable, Optional, TypeVar
-from dataclasses import dataclass, field
+from typing import Callable, TypeVar
+from dataclasses import dataclass
 from enum import Enum
 import logging
 
@@ -99,7 +99,7 @@ class CircuitBreaker:
             
             return result
             
-        except self.expected_exception as e:
+        except self.expected_exception:
             self._record_failure()
             raise
     
