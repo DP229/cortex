@@ -124,3 +124,49 @@ class CortexConfig:
     def config_dir(self) -> str:
         """Get config directory"""
         return os.path.expanduser("~/.cortex")
+
+
+# === Healthcare Configuration ===
+
+@dataclass
+class HealthcareConfig:
+    """Healthcare-specific configuration"""
+    # Authentication
+    jwt_secret: str = "change-me-in-production-use-long-random-string"
+    jwt_expiration_minutes: int = 15
+    jwt_refresh_expiration_days: int = 7
+    password_min_length: int = 12
+    max_login_attempts: int = 5
+    login_lockout_minutes: int = 15
+    
+    # HIPAA Compliance
+    hipaa_compliance_officer_email: str = "compliance@hospital.com"
+    hipaa_compliance_officer_phone: str = "1-800-555-0123"
+    data_retention_years: int = 6
+    breach_notification_days: int = 60
+    
+    # Security
+    encryption_key: Optional[str] = None
+    phi_detection_enabled: bool = True
+    phi_auto_redact: bool = True
+    audit_log_enabled: bool = True
+    
+    @classmethod
+    def from_env(cls) -> "HealthcareConfig":
+        """Load healthcare config from environment"""
+        return cls(
+            jwt_secret=os.getenv("JWT_SECRET", "change-me-in-production-use-long-random-string"),
+            jwt_expiration_minutes=int(os.getenv("JWT_EXPIRATION_MINUTES", "15")),
+            jwt_refresh_expiration_days=int(os.getenv("JWT_REFRESH_EXPIRATION_DAYS", "7")),
+            password_min_length=int(os.getenv("PASSWORD_MIN_LENGTH", "12")),
+            max_login_attempts=int(os.getenv("MAX_LOGIN_ATTEMPTS", "5")),
+            login_lockout_minutes=int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15")),
+            hipaa_compliance_officer_email=os.getenv("HIPAA_COMPLIANCE_OFFICER_EMAIL", "compliance@hospital.com"),
+            hipaa_compliance_officer_phone=os.getenv("HIPAA_COMPLIANCE_OFFICER_PHONE", "1-800-555-0123"),
+            data_retention_years=int(os.getenv("DATA_RETENTION_YEARS", "6")),
+            breach_notification_days=int(os.getenv("BREACH_NOTIFICATION_DAYS", "60")),
+            encryption_key=os.getenv("ENCRYPTION_KEY"),
+            phi_detection_enabled=os.getenv("PHI_DETECTION_ENABLED", "true").lower() == "true",
+            phi_auto_redact=os.getenv("PHI_AUTO_REDACT", "true").lower() == "true",
+            audit_log_enabled=os.getenv("AUDIT_LOG_ENABLED", "true").lower() == "true",
+        )
