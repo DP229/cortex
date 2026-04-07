@@ -1,11 +1,14 @@
 """
-Cortex Security Package
+Cortex Security Package - IEC 62443 Compliant
 
 HIPAA-compliant security features:
 - Authentication (JWT)
 - Authorization (RBAC)
 - Encryption (AES-256)
 - PHI Protection
+- IAM Gateway (Ollama protection)
+- Immutable Audit Logging
+- Data Minimization (PII masking)
 """
 
 from cortex.security.encryption import (
@@ -29,6 +32,37 @@ from cortex.security.auth import (
     get_current_active_user,
 )
 
+from cortex.security.iam_gateway import (
+    IAMGateway,
+    IAMAction,
+    IAMRequest,
+    IAMPolicy,
+    OllamaProxy,
+    get_iam_gateway,
+    get_ollama_proxy,
+)
+
+from cortex.security.immutable_audit import (
+    ImmutableAuditLogger,
+    AuditLogEntry,
+    SecurityEventType,
+    OTelAuditLogger,
+    get_audit_logger,
+    log_security_event,
+)
+
+from cortex.security.data_minimization import (
+    DataMinimizer,
+    DataMinimizationConfig,
+    DataCategory,
+    MaskedValue,
+    SafeLogger,
+    get_data_minimizer,
+    get_safe_logger,
+    mask_for_logging,
+    mask_dict_for_logging,
+)
+
 __all__ = [
     # Encryption
     "EncryptionManager",
@@ -47,4 +81,29 @@ __all__ = [
     "get_auth_manager",
     "get_current_user",
     "get_current_active_user",
+    # IAM Gateway
+    "IAMGateway",
+    "IAMAction",
+    "IAMRequest",
+    "IAMPolicy",
+    "OllamaProxy",
+    "get_iam_gateway",
+    "get_ollama_proxy",
+    # Immutable Audit
+    "ImmutableAuditLogger",
+    "AuditLogEntry",
+    "SecurityEventType",
+    "OTelAuditLogger",
+    "get_audit_logger",
+    "log_security_event",
+    # Data Minimization
+    "DataMinimizer",
+    "DataMinimizationConfig",
+    "DataCategory",
+    "MaskedValue",
+    "SafeLogger",
+    "get_data_minimizer",
+    "get_safe_logger",
+    "mask_for_logging",
+    "mask_dict_for_logging",
 ]
