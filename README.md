@@ -1,153 +1,196 @@
 # Cortex 🧠
 
-**Local-First AI Knowledge Base Agent**
+**Compliance-Ready AI Knowledge Base for Safety-Critical Industries**
 
-Ingest research, maintain a living wiki, and answer complex questions — all without a single byte leaving your machine.
+Build, verify, and document AI-powered knowledge systems — with deterministic outputs and full regulatory traceability. From research wikis to IEC 62304-compliant medical device documentation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![IEC 62304](https://img.shields.io/badge/IEC%2062304-Tool%20Class%202-green)](https://www.iec.ch)
+[![EN 50128](https://img.shields.io/badge/EN%2050128-SIL%200--4-blue)](https://www.cenelec.eu)
 
 ## What is Cortex?
 
-Cortex is a privacy-first AI agent that builds and maintains a wiki-based knowledge base from your research documents, code, and notes. Ask it anything — it reads your wiki, synthesizes answers, and writes them up as reports or slides.
+Cortex is a **compliance-ready AI knowledge management system** that transforms how safety-critical industries handle documentation. It combines intelligent RAG-powered search with deterministic citation verification and automated traceability matrices.
 
-- 🧠 **Intelligent Memory** — RAG-powered semantic search across your knowledge base
-- 📄 **Wiki Knowledge Base** — Auto-maintained markdown wiki with backlinks and index
-- 🔍 **Document Ingest** — PDF, web articles, code repos, data files → structured markdown
-- 🤖 **Multi-Agent Orchestration** — Sequential, parallel patterns for complex tasks
-- 🔒 **Local-First** — Zero data ever leaves your machine (Ollama by default)
-- 📊 **Output Rendering** — Marp slides, matplotlib charts, PDF reports
+**Two Modes:**
+- **Research Mode** — General-purpose AI knowledge base for any domain
+- **Compliance Mode** — IEC 62304/EN 50128 compliant with full audit trails
+
+## Use Cases
+
+| Industry | Application | Compliance |
+|----------|-------------|------------|
+| **Medical Devices** | AI-enabled device documentation | IEC 62304 Annex E, FDA AI/ML Action Plan |
+| **Railway Systems** | Safety-critical software docs | EN 50128, SIL 0-4 |
+| **Aerospace** | DO-178C compliance documentation | FAA/EASA standards |
+| **General R&D** | Research wiki with verifiable citations | EU AI Act Articles 11/12 |
+
+## Key Features
+
+### 🧠 Intelligent Knowledge Management
+- **RAG-powered semantic search** with hybrid BM25 + vector retrieval
+- **Living wiki** with automatic backlinks and indexing
+- **Multi-agent orchestration** for complex research tasks
+- **Local-first** — zero data leaves your machine (Ollama default)
+
+### ✅ Deterministic Outputs (No Hallucinations)
+- **Citation verification** — every claim traced to source documents
+- **Hybrid search** — combines vector + lexical (BM25) with Reciprocal Rank Fusion
+- **Parent-child chunking** — precise retrieval with full context preservation
+
+### 📋 Compliance Automation
+- **Structured compliance tags** — `` `` `` in Markdown
+- **Automated RTM generation** — bidirectional Requirements Traceability Matrix
+- **ReqIF export** — direct integration with IBM DOORS, PTC Codebeamer
+- **Annex E AIDL docs** — IEC 62304 Edition 2 AI Development Lifecycle
+
+### 🔒 Enterprise Security
+- **IAM gateway** — RBAC-protected Ollama endpoints
+- **Immutable audit logs** — hash-chain with cryptographic signatures
+- **PII masking** — automatic redaction before logging
+- **IEC 62443 aligned** — for OT security requirements
+
+### 📦 Tool Qualification Ready
+- **Tool Qualification Kit (TQK)** — IEC 62304 Tool Class 2
+- **SOUP documentation** — 8 third-party components documented
+- **TOR/TVP/TVR** — pre-built qualification documents
 
 ## Quick Start
 
+### Installation
+
 ```bash
-# Install
+git clone https://github.com/dp229/cortex.git
+cd cortex
 pip install -e .
 
-# Start Ollama (for local inference)
-ollama serve
+# Install Ollama (for local inference)
+curl -fsSL https://ollama.com/install.sh | sh
 ollama pull llama3
+```
 
-# Initialize a knowledge base
+### Basic Usage
+
+```bash
+# Initialize wiki
 cortex init ./my-wiki
 
 # Ingest documents
 cortex ingest ./papers/
-cortex ingest ./articles/
+cortex ingest ./docs/
 
 # Ask questions
-cortex ask "What are the key differences between transformers and RNNs?"
+cortex ask "What are the key requirements for Class B medical devices?"
 
 # Interactive chat
 cortex agent chat
 ```
 
-## Features
+### Compliance Mode
 
-### 🧠 Knowledge Base Agent
+```bash
+# Generate Tool Qualification Kit
+python -m cortex.tqk.cli --generate all --output TQK/
 
-```python
-from cortex import Agent, Memory
+# Generate RTM from tagged requirements
+python -m cortex.rich --rtm --format html --output rt matrix.html
 
-# Create agent with memory
-memory = Memory()
-agent = Agent(model="llama3", memory=memory)
+# Export to ReqIF for enterprise tools
+python -m cortex.reqif --wiki ./wiki --output requirements.reqif
 
-# Run - agent remembers context
-response = agent.run("I'm working on a Python project")
-response = agent.run("What am I working on?")  # Remembers!
-```
-
-### 📄 Wiki Management
-
-```python
-from cortex import KnowledgeBase
-
-kb = KnowledgeBase("./wiki", "./raw")
-
-# Write articles
-kb.write_article("concepts/ml-basics.md", "# ML Basics\n\n...")
-
-# Search semantically
-results = kb.search("machine learning fundamentals")
-
-# Auto-maintain
-kb.update_backlinks()
-kb.generate_index()
-```
-
-### 🔧 Tools
-
-```python
-from cortex import create_coder_agent
-
-coder = create_coder_agent()
-response = coder.run("List all Python files in this project")
-```
-
-### 🤝 Multi-Agent
-
-```python
-from cortex import Orchestrator, AgentSpec
-
-orchestrator = Orchestrator()
-
-agents = [
-    AgentSpec("researcher", "researcher", "Research thoroughly."),
-    AgentSpec("writer", "writer", "Write clearly."),
-]
-
-result = orchestrator.sync_sequential(agents, "What is AI?")
+# Generate AIDL documentation
+python -m cortex.market.aidl_generator --device "Cardiac Monitor" --version 2.0
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Cortex                                 │
-│                                                              │
-│  ┌─────────┐    ┌──────────────┐    ┌─────────┐           │
-│  │  Agent  │◄──►│ KnowledgeBase│◄──►│  Brain  │           │
-│  │         │    │   (Wiki)     │    │ (LLMs)  │           │
-│  └────┬────┘    └──────────────┘    └────┬────┘           │
-│       │                                   │                │
-│       └──────────┬────────────────────────┘                │
-│                  │                                         │
-│          ┌──────┴──────┐                                 │
-│          │   Ingest    │  PDF, Web, Code, Data           │
-│          │  Pipeline   │                                 │
-│          └─────────────┘                                 │
-│                  │                                         │
-│          ┌──────┴──────┐                                 │
-│          │  Orchestrator│  Sequential, Parallel           │
-│          └─────────────┘                                 │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                            Cortex                                     │
+│                                                                      │
+│  ┌──────────────┐    ┌────────────────────┐    ┌─────────────────┐  │
+│  │    Agent     │◄──►│   Knowledge Base    │◄──►│     Brain       │  │
+│  │              │    │      (Wiki)        │    │    (LLMs)       │  │
+│  └──────┬───────┘    └─────────┬──────────┘    └─────────────────┘  │
+│         │                      │                                      │
+│         │         ┌────────────┴────────────┐                        │
+│         │         │   Compliance Engine      │                        │
+│         │         ├─────────────────────────┤                        │
+│         │         │ • Citation Verification│                        │
+│         │         │ • Hybrid Search (BM25) │                        │
+│         │         │ • Parent-Child Chunks  │                        │
+│         │         │ • RTM Generation       │                        │
+│         │         │ • ReqIF Export        │                        │
+│         │         └─────────────────────────┤                        │
+│         │                                    │                        │
+│  ┌─────┴─────┐                    ┌────────┴────────┐             │
+│  │  Ingest   │                    │   TQK Generator  │             │
+│  │ Pipeline   │                    │   TOR/TVP/TVR   │             │
+│  └───────────┘                    └─────────────────┘              │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                    Security Layer                             │    │
+│  │  IAM Gateway • Immutable Audit • PII Masking • RBAC        │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## CLI
+## Compliance Documentation
 
-```bash
-# Agent
-cortex agent run "What is Python?"
-cortex agent chat
+### IEC 62304 Annex E (Medical Device AI)
 
-# Knowledge Base
-cortex init ./my-wiki
-cortex ingest ./papers/
-cortex ask "What are transformers?"
+```markdown
+{{< requirement id="REQ-SAFE-001" type="safety" priority="shall" safety-class="C" >}}
+The system shall validate patient data before processing.
+{{< /requirement >}}
 
-# Memory
-cortex memory add "Important fact" --type fact
-cortex memory search "fact"
+{{< test id="TEST-SAFE-001" type="system" method="test" verifies="REQ-SAFE-001" automated="true" >}}
+<input>Malformed patient record</input>
+<expected>System rejects input with validation error</expected>
+Verify input validation for safety-critical function.
+{{< /test >}}
 
-# Models
-cortex model list
-cortex model info llama3
-
-# Configuration
-cortex config show
-cortex config set model gpt-4
+{{< trace from="TEST-SAFE-001" to="REQ-SAFE-001" type="verifies" />}}
 ```
+
+Cortex automatically generates:
+- ✅ Bidirectional RTM from tags
+- ✅ Test coverage analysis
+- ✅ Safety class breakdown
+- ✅ ReqIF XML for DOORS/Codebeamer
+
+### Generated Documents
+
+| Document | Purpose | Standard |
+|----------|---------|----------|
+| TOR.md | Tool Operational Requirements | IEC 62304 |
+| TVP.md | Tool Verification Plan | IEC 62304 |
+| TVR.md | Tool Verification Report | IEC 62304 |
+| SOUP.md | Third-Party Components | ISO 14971 |
+| AIDL.md | AI Development Lifecycle | IEC 62304 Annex E |
+| RTM.html | Requirements Traceability Matrix | IEC 62304 |
+
+## Tech Stack
+
+| Component | Technology | Compliance Role |
+|-----------|------------|----------------|
+| Core | Python 3.10+ | Application |
+| LLM | Ollama (local) | Inference |
+| Memory | SQLite | Audit trail |
+| Embeddings | Sentence-Transformers | Semantic search |
+| API | FastAPI | Enterprise integration |
+| Encryption | cryptography (AES-256) | Data protection |
+
+## SOUP Components Documented
+
+| Component | Version | Risk Level |
+|-----------|---------|------------|
+| Ollama | latest | Medium |
+| Sentence Transformers | 2.x | Low |
+| SQLite | 3.x | Low |
+| FastAPI | 0.100+ | Low |
+| Llama 3 | 8B/70B | High (mitigated) |
 
 ## Supported Models
 
@@ -166,20 +209,18 @@ cortex config set model gpt-4
 
 - [Quick Start](docs/QUICKSTART.md) — Get started in 5 minutes
 - [API Reference](docs/API.md) — Complete API documentation
-- [Implementation Plan](PLAN.md) — Development roadmap
+- [Compliance Guide](docs/COMPLIANCE.md) — IEC 62304/EN 50128 walkthrough
+- [TQK Documentation](TQK/) — Tool Qualification Kit templates
 
-## Tech Stack
+## 2026 Regulatory Window
 
-- **Python 3.10+** — Core language
-- **SQLite** — Memory persistence
-- **Sentence-Transformers** — Embeddings (optional)
-- **OpenAI/Anthropic SDKs** — Cloud LLM providers
-- **Ollama** — Local inference (default)
-- **PyYAML** — Configuration persistence
+The 2026 transition period for **IEC 62304 Edition 2** creates urgent need for:
 
-## Contributing
+1. **Annex E AI Development Lifecycle** documentation for AI-enabled devices
+2. **FDA AI/ML Action Plan** compliance for US market
+3. **EU AI Act** transparency requirements (Articles 11 & 12)
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Cortex addresses all three** with automated documentation generation.
 
 ## License
 
@@ -189,8 +230,8 @@ MIT License — see [LICENSE](LICENSE)
 
 - [GitHub](https://github.com/dp229/cortex)
 - [Documentation](docs/)
-- [Plan](PLAN.md)
+- [Tool Qualification Kit](TQK/)
 
 ---
 
-Built with ❤️ for privacy-conscious developers and researchers
+*Built for developers and QA engineers who need AI-powered documentation that's also audit-ready.*
