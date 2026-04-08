@@ -123,32 +123,32 @@ python -m cortex.drp --query "What is the safety class?" --output /var/log/corte
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                            Cortex                                     │
-│                                                                      │
+│                            Cortex                                   │
+│                                                                     │
 │  ┌──────────────┐    ┌────────────────────┐    ┌─────────────────┐  │
-│  │    Agent     │◄──►│   Knowledge Base    │◄──►│     Brain       │  │
+│  │    Agent     │◄──►│  Knowledge Base    │◄──►│     Brain       │  │
 │  │              │    │      (Wiki)        │    │    (LLMs)       │  │
 │  └──────┬───────┘    └─────────┬──────────┘    └─────────────────┘  │
-│         │                      │                                      │
-│         │         ┌────────────┴────────────┐                        │
-│         │         │   Compliance Engine      │                        │
-│         │         ├─────────────────────────┤                        │
-│         │         │ • Citation Verification │                        │
-│         │         │ • Hybrid Search (BM25) │                        │
-│         │         │ • tiktoken Chunks      │                        │
-│         │         │ • RTM Generation       │                        │
-│         │         │ • ReqIF Export (XSD)   │                        │
-│         │         └─────────────────────────┤                        │
-│         │                                    │                        │
-│  ┌─────┴─────┐                    ┌────────┴────────┐             │
-│  │  Ingest   │                    │   TQK Generator  │             │
-│  │ Pipeline   │                    │   TOR/TVP/TVR   │             │
-│  └───────────┘                    └─────────────────┘              │
-│                                                                      │
+│         │                      │                                    │
+│         │         ┌────────────┴────────────┐                       │
+│         │         │   Compliance Engine     │                       │
+│         │         ├─────────────────────────┤                       │
+│         │         │ • Citation Verification │                       │
+│         │         │ • Hybrid Search (BM25)  │                       │
+│         │         │ • tiktoken Chunks       │                       │
+│         │         │ • RTM Generation        │                       │
+│         │         │ • ReqIF Export (XSD)    │                       │
+│         │         └─────────────────────────┤                       │
+│         │                                   │                       │
+│   ┌─────┴─────┐                    ┌────────┴────────┐              │
+│   │  Ingest   │                    │   TQK Generator │              │
+│   │ Pipeline  │                    │   TOR/TVP/TVR   │              │
+│   └───────────┘                    └─────────────────┘              │
+│                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │                    Security Layer (IEC 62443)                  │    │
-│  │  IAM Gateway (Redis Rate Limit) • Immutable Audit (Merkle)   │    │
-│  │  PII Masking (5-Layer) • DRP (FDA 21 CFR Part 11)         │    │
+│  │                    Security Layer (IEC 62443)               │    │
+│  │  IAM Gateway (Redis Rate Limit) • Immutable Audit (Merkle)  │    │
+│  │  PII Masking (5-Layer) • DRP (FDA 21 CFR Part 11)           │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
