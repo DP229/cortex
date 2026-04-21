@@ -1,0 +1,15 @@
+.mem-search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.mem-search-row .input { flex: 1; }
+
+.add-form { margin-bottom: 16px; }
+.add-form__fields { display: flex; gap: 8px; align-items: center; }
+.add-form__fields .input:nth-child(1) { flex: 1; }
+.add-form__fields .input:nth-child(2) { width: 130px; }
+.add-form__fields .input:nth-child(3) { width: 70px; }
+
+.mem-list { display: flex; flex-direction: column; gap: 12px; }
+.mem-entry { display: flex; gap: 12px; align-items: stretch; }
+.mem-entry__bar { width: 3px; border-radius: 2px; align-self: stretch; }
+.mem-entry__body { flex: 1; }
+.mem-entry__content { font-size: 14px; line-height: 1.5; margin-bottom: 6px; }
+.mem-entry__meta { display: flex; gap: 8px; align-items: center; }

@@ -1,0 +1,35 @@
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 24px;
+}
+.search-icon { color: var(--text-muted); flex-shrink: 0; }
+.search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.search-input::placeholder { color: var(--text-muted); }
+
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-header h2 { font-size: 16px; font-weight: 600; }
+
+.activity-list { display: flex; flex-direction: column; gap: 12px; }
+.activity-item { display: flex; align-items: center; gap: 12px; }
+.activity-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.activity-body { flex: 1; }
+.activity-action { font-weight: 600; font-size: 13px; }
+.activity-time { flex-shrink: 0; }

@@ -1,0 +1,15 @@
+.kb-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.kb-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge-ghost { background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer; border: 1px solid var(--border); }
+.badge-ghost:hover { background: var(--bg-card-hover); color: var(--text); }
+
+.kb-list { display: flex; flex-direction: column; gap: 12px; }
+.kb-entry__text { font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
+.kb-entry__footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kb-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.kb-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 20px; padding: 2px 8px;
+  font-size: 11px; color: var(--text-muted);
+}
