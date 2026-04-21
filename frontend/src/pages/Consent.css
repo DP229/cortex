@@ -1,0 +1,2 @@
+.consent { display: flex; flex-direction: column; gap: 16px; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
