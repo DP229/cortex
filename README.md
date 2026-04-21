@@ -19,345 +19,207 @@ Cortex is a **compliance-ready AI knowledge management system** that transforms 
 - **Research Mode** — General-purpose AI knowledge base for any domain
 - **Compliance Mode** — IEC 62304/EN 50128 compliant with full audit trails
 
-## Use Cases
-
-| Industry | Application | Compliance |
-|----------|-------------|------------|
-| **Medical Devices** | AI-enabled device documentation | IEC 62304 Annex E, FDA AI/ML Action Plan, FDA 21 CFR Part 11 |
-| **Railway Systems** | Safety-critical software docs | EN 50128, SIL 0-4 |
-| **Aerospace** | DO-178C compliance documentation | FAA/EASA standards |
-| **General R&D** | Research wiki with verifiable citations | EU AI Act Articles 11/12, ISO 14971 |
-
-## Key Features
-
-### 🧠 Intelligent Knowledge Management
-- **RAG-powered semantic search** with hybrid BM25 + vector retrieval
-- **Automatic index rebuild** — file-hash change detection, no restart needed
-- **Living wiki** with automatic backlinks and indexing
-- **Multi-agent orchestration** for complex research tasks
-- **Local-first** — zero data leaves your machine (Ollama default)
-
-### ✅ Deterministic Outputs (No Hallucinations)
-- **Safety-class-aware thresholds** — critical requirements demand 98%+ exact match
-- **Citation verification** — every claim traced to source documents
-- **Proper text normalization** — preserves decimals, versions, acronyms
-- **8 citation formats** — markdown, wikilinks, superscript, author-year, etc.
-- **Hallucination detection** with measurable false-positive metrics
-
-### 📋 Compliance Automation
-- **Structured compliance tags** — `<requirement>`, `<test>`, `<trace>` in Markdown
-- **Tarjan SCC cycle detection** — prevents infinite verification loops
-- **Automated RTM generation** — bidirectional Requirements Traceability Matrix
-- **ReqIF export with XSD validation** — DOORS-compatible XML, fully qualified namespaces
-- **Annex E AIDL docs** — IEC 62304 Edition 2 AI Development Lifecycle
-
-### 🔒 Enterprise Security (IEC 62443 / SOC 2)
-- **IAM gateway** — RBAC-protected Ollama endpoints
-- **Redis token bucket rate limiting** — worker-safe, no bypass vulnerability
-- **Immutable audit logs** — Merkle tree + key rotation (90-day), cryptographically signed
-- **PII masking** — 5-layer defense-in-depth with injection detection
-- **HMAC-SHA256 signatures** — key rotation supported, compromise detection
-
-### 📦 Decision Reproducibility Package (FDA 21 CFR Part 11)
-- **Timestamped audit packages** for every compliance-critical query
-- **Signed directory structure** — prompt, context, model info, response
-- **Integrity chain** — SHA256 hashes + HMAC signatures
-- **7-year retention** — FDA Part 11 compliant
-
-### 📦 Tool Qualification Ready
-- **Tool Qualification Kit (TQK)** — IEC 62304 Tool Class 2
-- **ISO 14971 aligned SOUP documentation** — exact version pinning, measurable failure criteria
-- **TOR/TVP/TVR** — pre-built qualification documents with pass/fail metrics
-
-## Quick Start
-
-### Installation
-
-```bash
-git clone https://github.com/dp229/cortex.git
-cd cortex
-pip install -e .
-
-# Install Ollama (for local inference)
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3
-```
-
-### Basic Usage
-
-```bash
-# Initialize wiki
-cortex init ./my-wiki
-
-# Ingest documents
-cortex ingest ./papers/
-cortex ingest ./docs/
-
-# Ask questions
-cortex ask "What are the key requirements for Class B medical devices?"
-
-# Interactive chat
-cortex agent chat
-```
-
-### Compliance Mode
-
-```bash
-# Generate Tool Qualification Kit
-python -m cortex.tqk.cli --generate all --output TQK/
-
-# Generate RTM from tagged requirements (with cycle detection)
-python -m cortex.rtm --wiki ./wiki --format html --output rtm.html
-
-# Export to ReqIF for enterprise tools (with XSD validation)
-python -m cortex.reqif --wiki ./wiki --output requirements.reqif
-
-# Generate AIDL documentation
-python -m cortex.market.aidl_generator --device "Cardiac Monitor" --version 2.0
-
-# Generate Decision Reproducibility Package
-python -m cortex.drp --query "What is the safety class?" --output /var/log/cortex/drp/
-```
-
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                            Cortex                                   │
+│                           Cortex                                   │
 │                                                                     │
 │  ┌──────────────┐    ┌────────────────────┐    ┌─────────────────┐  │
-│  │    Agent     │◄──►│  Knowledge Base    │◄──►│     Brain       │  │
-│  │              │    │      (Wiki)        │    │    (LLMs)       │  │
-│  └──────┬───────┘    └─────────┬──────────┘    └─────────────────┘  │
+│  │    Agent    │◄──►│  Knowledge Base     │◄──►│     Brain       │  │
+│  │             │    │      (Wiki)        │    │    (LLMs)       │  │
+│  └──────┬──────┘    └─────────┬──────────┘    └─────────────────┘  │
 │         │                      │                                    │
-│         │         ┌────────────┴────────────┐                       │
-│         │         │   Compliance Engine     │                       │
-│         │         ├─────────────────────────┤                       │
-│         │         │ • Citation Verification │                       │
-│         │         │ • Hybrid Search (BM25)  │                       │
-│         │         │ • tiktoken Chunks       │                       │
-│         │         │ • RTM Generation        │                       │
+│         │         ┌───────────┴───────────┐                       │
+│         │         │   Compliance Engine   │                       │
+│         │         ├────────────────────────┤                       │
+│         │         │ • Citation Verification│                       │
+│         │         │ • Hybrid Search (BM25) │                       │
+│         │         │ • RTM Generation       │                       │
 │         │         │ • ReqIF Export (XSD)    │                       │
-│         │         └─────────────────────────┤                       │
+│         │         └────────────────────────┤                       │
 │         │                                   │                       │
-│   ┌─────┴─────┐                    ┌────────┴────────┐              │
-│   │  Ingest   │                    │   TQK Generator │              │
-│   │ Pipeline  │                    │   TOR/TVP/TVR   │              │
-│   └───────────┘                    └─────────────────┘              │
+│   ┌─────┴──────┐                   ┌───────┴────────┐             │
+│   │  Ingest    │                   │  TQK Generator  │             │
+│   │ Pipeline  │                   │  TOR/TVP/TVR    │             │
+│   └───────────┘                   └─────────────────┘             │
 │                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │                    Security Layer (IEC 62443)               │    │
-│  │  IAM Gateway (Redis Rate Limit) • Immutable Audit (Merkle)  │    │
-│  │  PII Masking (5-Layer) • DRP (FDA 21 CFR Part 11)           │    │
-│  └─────────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │                   Security Layer (IEC 62443)                │  │
+│  │  IAM Gateway (RBAC) • Immutable Audit (Merkle)                │  │
+│  │  PII Masking (AES-256) • DRP (FDA 21 CFR Part 11)            │  │
+│  └─────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
-```
-
-## Security Architecture
-
-### Immutable Audit Logs (Cryptographically Secure)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Rotation Period N                                       │
-│                                                          │
-│  Manifest (signed):                                      │
-│  ├── Merkle Root: SHA256(entries)                       │
-│  ├── Entry Count: 1,847                                 │
-│  ├── Previous Manifest ID: manifest_N-1                  │
-│  ├── Previous Signature: HMAC(manifest_N-1)             │
-│  └── Signature: HMAC-SHA256(manifest_content)            │
-│                                                          │
-│  Entries File (append-only):                             │
-│  ├── Entry 1: hash(Entry1), prev=genesis, sig=HMAC    │
-│  ├── Entry 2: hash(Entry2), prev=Entry1,  sig=HMAC    │
-│  └── Entry N: hash(EntryN), prev=EntryN-1, sig=HMAC    │
-│                                                          │
-│  Key Management:                                          │
-│  └── Key rotated every 90 days (IEC 62443 minimum)       │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Rate Limiting (Worker-Safe)
-
-```
-Multi-Worker FastAPI (3 workers):
-
-BEFORE (vulnerable):
-  Worker 1: rate_limit["user"] = [90 requests]  ← Separate store!
-  Worker 2: rate_limit["user"] = []             ← BYPASS!
-  Worker 3: rate_limit["user"] = []             ← BYPASS!
-
-AFTER (Redis Token Bucket):
-  Redis: rate_limit:user → tokens=12.5, refill_rate=1.67/sec
-  All workers share same state (atomic Lua script)
-```
-
-### Data Minimization (5-Layer Defense)
-
-```
-Layer 1: PII Regex (names, emails, SSNs, phones)
-Layer 2: Secret Detection (entropy ≥4.5 bits, known prefixes)
-Layer 3: Prompt Injection (instruction override, exfil patterns)
-Layer 4: Context-Aware Policies (audit/log/debug/user_output)
-Layer 5: URL Sanitization (query params stripped)
-```
-
-## Compliance Documentation
-
-### IEC 62304 Annex E (Medical Device AI)
-
-```markdown
-{{< requirement id="REQ-SAFE-001" type="safety" priority="shall" safety-class="C" >}}
-The system shall validate patient data before processing.
-{{< /requirement >}}
-
-{{< test id="TEST-SAFE-001" type="system" method="test" verifies="REQ-SAFE-001" automated="true" >}}
-<input>Malformed patient record</input>
-<expected>System rejects input with validation error</expected>
-Verify input validation for safety-critical function.
-{{< /test >}}
-
-{{< trace from="TEST-SAFE-001" to="REQ-SAFE-001" type="verifies" />}}
-```
-
-Cortex automatically generates:
-- ✅ Bidirectional RTM from tags
-- ✅ Test coverage analysis
-- ✅ Safety class breakdown
-- ✅ **XSD-validated ReqIF XML** for DOORS/Codebeamer
-- ✅ **Tarjan SCC cycle detection** prevents infinite loops
-
-### ISO 14971 SOUP with Measurable Criteria
-
-```python
-# Example: Ollama failure mode with measurable criteria
-ISO14971FailureMode(
-    failure_mode_id="FM-OLLAMA-001",
-    name="Citation False Positive Rate Excessive",
-    severity=Severity.SERIOUS,
-    probability=Probability.OCCASIONAL,
-    measurable_criteria=[
-        MeasurableCriterion(
-            criterion_id="CRIT-OLLAMA-001a",
-            metric="false_positive_rate",
-            threshold=5.0,  # < 5%
-            unit="%",
-            measurement_method="Run deterministic.py on 1000 queries",
-            pass_condition="value < threshold",
-        ),
-    ],
-)
-```
-
-### Generated Documents
-
-| Document | Purpose | Standard |
-|----------|---------|----------|
-| TOR.md | Tool Operational Requirements | IEC 62304 |
-| TVP.md | Tool Verification Plan | IEC 62304 |
-| TVR.md | Tool Verification Report | IEC 62304 |
-| SOUP.md | Third-Party Components | ISO 14971 |
-| AIDL.md | AI Development Lifecycle | IEC 62304 Annex E |
-| RTM.html | Requirements Traceability Matrix | IEC 62304 |
-| requirements.reqif | DOORS Import | ReqIF XSD |
-
-## Decision Reproducibility Package (DRP)
-
-Every compliance-critical query generates a signed audit package:
-
-```
-/var/log/cortex/drp/2026/04/07/drp_a1b2c3d4/
-├── manifest.json          # Package metadata + file hashes
-├── prompt.json           # Exact prompt sent to model
-├── context_chunks.json   # Retrieved context with scores
-├── model_info.json       # Model version, config
-├── response_raw.json      # Raw model response
-├── citations.json         # Verified citations
-├── metadata.json         # Safety class, exec time
-├── signature.json        # HMAC-SHA256 signature
-└── .sealed              # Completion marker
 ```
 
 ## Tech Stack
 
-| Component | Version | Compliance Role |
-|-----------|---------|----------------|
-| Core | Python 3.10+ | Application |
-| LLM | Ollama 0.5.4 (exact) | Inference |
-| Memory | SQLite | Audit trail |
-| Embeddings | Sentence-Transformers 2.7.0 | Semantic search |
-| Tokenizer | tiktoken (cl100k_base) | Context management |
-| API | FastAPI | Enterprise integration |
-| Encryption | cryptography 42.0.7 | Data protection (AES-256) |
-| Rate Limiting | Redis + Lua | Distributed rate limit |
-| Validation | xmlschema + lxml | ReqIF XSD validation |
+| Layer | Component | Notes |
+|-------|-----------|-------|
+| **Frontend** | React 18 + Vite + TypeScript | SPA with dark enterprise theme |
+| **Backend** | Python FastAPI | REST API on port 8080 |
+| **LLM** | Ollama (local) | Zero data leaves your machine |
+| **Database** | SQLite | Audit trail, patients, consent |
+| **Auth** | JWT + RBAC | 15-min tokens, 7-day refresh |
+| **Encryption** | AES-256 (cryptography) | PHI at rest + in transit |
+| **Rate Limiting** | Redis token bucket | Worker-safe |
 
-## SOUP Components (ISO 14971 Aligned)
+## Getting Started
 
-| Component | Exact Version | IEC 62304 Class | Risk Level |
-|-----------|--------------|-----------------|------------|
-| Ollama | 0.5.4 | A | Medium |
-| Sentence Transformers | 2.7.0 | A | Low |
-| SQLite | 3.x | A | Low |
-| FastAPI | 0.100+ | A | Low |
-| PyJWT | 2.x | A | Low |
-| cryptography | 42.0.7 | B | High (mitigated) |
-| pytest | 8.x | A | Low |
-| tiktoken | 0.7+ | A | Low |
+### 1. Backend
 
-Each SOUP component includes:
-- **Exact version pinning** (no "latest" or ranges)
-- **ISO 14971 hazard analysis** with severity/probability
-- **Measurable failure criteria** with pass/fail thresholds
-- **Mitigation strategies** mapped to failure modes
-- **Version history** for change tracking
+```bash
+git clone https://github.com/dp229/cortex.git
+cd cortex
 
-## 2026 Regulatory Window
+# Python virtual environment
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -e .
 
-The 2026 transition period for **IEC 62304 Edition 2** creates urgent need for:
+# Install Ollama (for local AI inference)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3
 
-1. **Annex E AI Development Lifecycle** documentation for AI-enabled devices
-2. **FDA AI/ML Action Plan** compliance for US market
-3. **EU AI Act** transparency requirements (Articles 11 & 12)
-4. **FDA 21 CFR Part 11** electronic records audit trails
+# Start the API server
+uvicorn cortex.api:app --reload --port 8080
+```
 
-**Cortex addresses all four** with automated documentation generation.
+### 2. Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server (proxies /api/* → localhost:8080)
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) — login with a registered account.
+
+### 3. Register a user (first time only)
+
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Test@12345678!","full_name":"Admin User","role":"admin"}'
+```
+
+Password requirements: 12+ chars, uppercase, lowercase, number, special character.
+
+## Project Structure
+
+```
+cortex/
+├── cortex/
+│   ├── api.py              # Main FastAPI app (REST endpoints)
+│   ├── api_healthcare.py   # Healthcare API (patients, consent, audit)
+│   ├── auth_routes.py      # /auth/* JWT login/register/refresh
+│   ├── audit_routes.py     # /audit/* immutable audit logs
+│   ├── consent_routes.py   # /consent/* HIPAA consent records
+│   ├── models.py           # SQLAlchemy models (User, Patient, Consent, AuditLog…)
+│   ├── brain.py            # LLM orchestration
+│   ├── knowledgebase.py    # RAG + hybrid BM25/vector search
+│   ├── securityauth.py     # JWT auth manager
+│   ├── audit.py           # Merkle tree audit signatures
+│   └── tqk/              # Tool Qualification Kit generators
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx        # Router + layout + auth guard
+│   │   ├── contexts/
+│   │   │   └── AuthContext.tsx   # JWT auth state + provider
+│   │   ├── utils/
+│   │   │   └── api.ts            # Auth-aware fetch wrapper
+│   │   └── pages/
+│   │       ├── Dashboard.tsx     # Stats + quick search
+│   │       ├── AgentChat.tsx     # LLM chat with model selector
+│   │       ├── KnowledgeBase.tsx # RAG search + citations
+│   │       ├── MemoryPage.tsx    # Long-term memory store
+│   │       ├── Patients.tsx      # PHI patient records
+│   │       ├── Consent.tsx       # HIPAA consent management
+│   │       ├── AuditLog.tsx      # Immutable audit trail viewer
+│   │       └── Metrics.tsx       # Latency + query volume charts
+│   └── vite.config.ts     # Vite + /api proxy to :8080
+└── docs/
+    ├── USER_GUIDE.md      # Full user guide
+    ├── API.md             # API reference
+    ├── QUICKSTART.md      # 5-minute quick start
+    └── DEPLOYMENT.md       # Production deployment guide
+```
+
+## Features
+
+### 🧠 Intelligent Knowledge Management
+- RAG-powered semantic search (BM25 + vector hybrid)
+- Living wiki with automatic backlinks and indexing
+- Multi-agent orchestration for complex research tasks
+- Local-first — zero data leaves your machine (Ollama default)
+
+### 🔐 Enterprise Security (HIPAA / SOC 2)
+- **JWT auth** — admin, clinician, researcher, auditor roles
+- **AES-256 PHI encryption** — at rest and in transit
+- **Immutable audit logs** — Merkle tree + HMAC-SHA256 signatures
+- **RBAC** — role-based access on all endpoints
+- **5-layer PII masking** — defense-in-depth
+
+### 📋 Compliance Automation
+- Structured compliance tags in Markdown (`{{< requirement >}}`)
+- Automated Requirements Traceability Matrix (RTM) generation
+- ReqIF export with XSD validation (DOORS-compatible)
+- Annex E AIDL docs — IEC 62304 Edition 2 AI Development Lifecycle
+- Decision Reproducibility Package (DRP) — FDA 21 CFR Part 11
+
+### 📊 Frontend UI
+| Page | Description |
+|------|-------------|
+| Dashboard | Stats (queries, KB entries, latency, uptime) + quick search |
+| Agent Chat | Chat with model selector (llama3/mistral) + memory toggle |
+| Knowledge Base | Searchable compliance entries with citations + tag filters |
+| Memory | Long-term memory store with importance scoring |
+| Patients | PHI patient records (name encrypted, MRN indexed) |
+| Consent | HIPAA consent records with grant/revoke lifecycle |
+| Audit Log | Sortable audit trail with CSV export |
+| Metrics | Latency trend charts + queries/day + model registry |
+
+## Quick Start
+
+```bash
+# API health check
+curl http://localhost:8080/health
+
+# Login
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Test@12345678!"}'
+
+# Search knowledge base
+curl -X POST http://localhost:8080/memory/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"query":"IEC 62304 requirements","limit":5}'
+```
+
+## Compliance Standards
+
+| Standard | Scope |
+|----------|-------|
+| **IEC 62304** | Medical device software lifecycle |
+| **EN 50128** | Railway software safety (SIL 0–4) |
+| **ISO 14971** | Medical device risk management |
+| **FDA 21 CFR Part 11** | Electronic records + signatures |
+| **HIPAA** | PHI protection + consent tracking |
+| **IEC 62443** | Industrial cybersecurity |
+| **FDA AI/ML Action Plan** | AI-enabled device documentation |
 
 ## Documentation
 
 - [Quick Start](docs/QUICKSTART.md) — Get started in 5 minutes
-- [API Reference](docs/API.md) — Complete API documentation
-- [Compliance Guide](docs/COMPLIANCE.md) — IEC 62304/EN 50128 walkthrough
-- [TQK Documentation](TQK/) — Tool Qualification Kit templates
-- [Security Architecture](docs/SECURITY.md) — IEC 62443 alignment
+- [User Guide](docs/USER_GUIDE.md) — Complete user documentation
+- [API Reference](docs/API.md) — All REST endpoints
+- [Deployment Guide](docs/DEPLOYMENT.md) — Production setup with Cloudflare Tunnel
 
 ## License
 
-MIT License — see [LICENSE](LICENSE)
-
-## Links
-
-- [GitHub](https://github.com/dp229/cortex)
-- [Documentation](docs/)
-- [Tool Qualification Kit](TQK/)
-
----
-
-*Built for developers and QA engineers who need AI-powered documentation that's also audit-ready.*
-
-## Changelog (Recent Security Fixes)
-
-### v1.1 Security Hardening
-- **Immutable Audit Logs**: Merkle tree structure + 90-day key rotation
-- **Worker-Safe Rate Limiting**: Redis token bucket, no bypass vulnerability
-- **PII Masking**: 5-layer defense-in-depth with injection detection
-- **ReqIF XSD Validation**: DOORS-compatible XML with fully qualified namespaces
-- **ISO 14971 SOUP**: Exact version pinning + measurable failure criteria
-
-### v1.0 Phase 1-5
-- RAG with hybrid BM25 + vector search
-- Deterministic citation verification
-- RTM generation and ReqIF export
-- IAM gateway with RBAC
-- Tool Qualification Kit
+MIT — see [LICENSE](LICENSE)
