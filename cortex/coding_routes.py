@@ -510,7 +510,7 @@ async def create_code_mapping(
     **Usage:** Medical coders can add new mappings
     """
     # Check permission - only admins can create mappings
-    if current_user.role.value != "admin":
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin permission required"

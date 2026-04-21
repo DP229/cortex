@@ -641,7 +641,7 @@ class AuditLogEntry:
     resource_path: Optional[str] = None
     
     # Action details
-    action: str
+    action: str = ""
     outcome: str = "success"
     outcome_reason: Optional[str] = None
     
@@ -805,7 +805,7 @@ class SignedManifest:
     period_end_time: Optional[float] = None
     
     # Key and chain
-    key_version: int
+    key_version: int = 0
     previous_manifest_id: Optional[str] = None
     previous_manifest_signature: Optional[str] = None
     
@@ -1690,3 +1690,5 @@ def log_security_event(
 ) -> AuditLogEntry:
     """Quick function to log a security event"""
     return get_audit_logger().log(event_type, action, **kwargs)
+# Alias for backwards compat
+OTelAuditLogger = ImmutableAuditLogger

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 import structlog
 
-from cortex.database import get_db_session
+from cortex.database import get_session
 from cortex.models import (
     AuditLog, User, Patient, SecurityIncident, BreachNotification,
     IncidentType, IncidentSeverity, IncidentStatus
@@ -99,7 +99,7 @@ class AuditLogger:
         """Get database session"""
         if self.db:
             return self.db
-        return get_db_session()
+        return get_session()
     
     def log(self, entry: AuditEntry) -> Optional[UUID]:
         """
@@ -495,7 +495,7 @@ class BreachManager:
         """Get database session"""
         if self.db:
             return self.db
-        return get_db_session()
+        return get_session()
     
     def create_incident(
         self,

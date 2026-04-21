@@ -17,14 +17,29 @@ from datetime import datetime
 from uuid import UUID, uuid4
 from typing import Optional, List, Dict, Any
 
-from sqlalchemy import (
-    Column, String, Boolean, DateTime, Integer, Text, 
-    ForeignKey, Index, UniqueConstraint, Enum as SQLEnum, JSON
-)
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, ARRAY, INET
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+import os
+import logging
 import enum
+from contextlib import contextmanager
+
+from sqlalchemy import (
+    Column, String, Boolean, DateTime, Integer, Text,
+    ForeignKey, Index, UniqueConstraint, JSON, create_engine, event
+)
+from sqlalchemy.orm import sessionmaker, Session, scoped_session
+from sqlalchemy.pool import QueuePool
+from sqlalchemy.exc import SQLAlchemyError, DisconnectionError
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+# Universal UUID type — PGUUID on PostgreSQL, String(36) on SQLite
+SQLITE_UUID_MODE = os.getenv("CORTEX_SQLITE", "").lower() in ("1", "true", "yes")
+
+def _get_uuid_type():
+    """Return appropriate UUID column type for current DB."""
+    if SQLITE_UUID_MODE:
+        return String(36)
+    return String(36)
 
 Base = declarative_base()
 
@@ -81,7 +96,7 @@ class TimestampMixin:
 
 class UUIDMixin:
     """Add UUID primary key"""
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
 
 
 # === User Management ===
@@ -93,7 +108,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     full_name_encrypted = Column(Text, nullable=False)  # Encrypted for PHI
-    role = Column(SQLEnum(UserRole), default=UserRole.CLINICIAN, nullable=False)
+    role = Column(String(20), default="clinician", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     last_login = Column(DateTime, nullable=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
@@ -101,7 +116,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
-    user_roles = relationship("UserRoleMapping", back_populates="user", cascade="all, delete-orphan")
+    user_roles = relationship("UserRoleMapping", back_populates="user", cascade="all, delete-orphan", foreign_keys="UserRoleMapping.user_id")
     
     # Indexes
     __table_args__ = (
@@ -118,10 +133,10 @@ class Session(UUIDMixin, TimestampMixin, Base):
     """User session for JWT refresh tokens"""
     __tablename__ = "sessions"
     
-    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     refresh_token = Column(String(500), nullable=True)
     expires_at = Column(DateTime, nullable=False)
-    ip_address = Column(INET, nullable=True)
+    ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     
     # Relationships
@@ -155,9 +170,9 @@ class UserRoleMapping(UUIDMixin, TimestampMixin, Base):
     """User-Role mapping (many-to-many)"""
     __tablename__ = "user_roles"
     
-    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role_id = Column(PGUUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
-    assigned_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role_id = Column(String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    assigned_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="user_roles", foreign_keys=[user_id])
@@ -204,13 +219,13 @@ class ConsentRecord(UUIDMixin, TimestampMixin, Base):
     """Patient consent records"""
     __tablename__ = "consent_records"
     
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    consent_type = Column(SQLEnum(ConsentType), nullable=False)
+    patient_id = Column(String(36), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    consent_type = Column(String(20), nullable=False)
     consented = Column(Boolean, nullable=False)
     consent_date = Column(DateTime, nullable=False)
     expiry_date = Column(DateTime, nullable=True)
     consent_form_encrypted = Column(Text, nullable=True)  # Encrypted PDF
-    obtained_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    obtained_by = Column(String(36), ForeignKey("users.id"), nullable=False)
     notes = Column(Text, nullable=True)
     
     # Relationships
@@ -233,12 +248,12 @@ class AuditLog(UUIDMixin, Base):
     """Comprehensive audit log for HIPAA compliance"""
     __tablename__ = "audit_log"
     
-    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # System actions can be NULL
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True)  # System actions can be NULL
     action = Column(String(100), nullable=False)  # e.g., "patient_read", "phi_access"
     resource_type = Column(String(50), nullable=True)  # "patient", "document", "agent"
-    resource_id = Column(PGUUID(as_uuid=True), nullable=True)
-    patient_id = Column(PGUUID(as_uuid=True), nullable=True)  # If PHI accessed
-    ip_address = Column(INET, nullable=True)
+    resource_id = Column(String(36), nullable=True)
+    patient_id = Column(String(36), nullable=True)  # If PHI accessed
+    ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     details = Column(JSON, nullable=True)  # Additional context
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -261,9 +276,9 @@ class CareTeam(UUIDMixin, TimestampMixin, Base):
     """Care team for patient"""
     __tablename__ = "care_teams"
     
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, unique=True)
+    patient_id = Column(String(36), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, unique=True)
     name = Column(String(255), nullable=True)
-    primary_provider = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    primary_provider = Column(String(36), ForeignKey("users.id"), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     
     # Relationships
@@ -280,11 +295,11 @@ class CareTeamMember(UUIDMixin, TimestampMixin, Base):
     """Care team member"""
     __tablename__ = "care_team_members"
     
-    team_id = Column(PGUUID(as_uuid=True), ForeignKey("care_teams.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    team_id = Column(String(36), ForeignKey("care_teams.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     role = Column(String(50), nullable=False)  # 'primary_physician', 'specialist', 'nurse', 'care_coordinator'
     is_active = Column(Boolean, default=True, nullable=False)
-    assigned_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    assigned_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     
     # Relationships
     team = relationship("CareTeam", back_populates="members")
@@ -302,12 +317,12 @@ class CareNote(UUIDMixin, TimestampMixin, Base):
     """Clinical notes"""
     __tablename__ = "care_notes"
     
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    author_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    patient_id = Column(String(36), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    author_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     note_type = Column(String(50), nullable=False)  # 'progress', 'consultation', 'discharge'
     content_encrypted = Column(Text, nullable=False)  # Encrypted
     is_shared = Column(Boolean, default=False, nullable=False)
-    shared_with = Column(ARRAY(PGUUID(as_uuid=True)), nullable=True)  # Array of user IDs
+    shared_with = Column(JSON, nullable=True)  # Array of user IDs
     
     # Relationships
     patient = relationship("Patient", back_populates="notes")
@@ -325,9 +340,9 @@ class CareTask(UUIDMixin, TimestampMixin, Base):
     """Care tasks and follow-ups"""
     __tablename__ = "care_tasks"
     
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    assigned_to = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    patient_id = Column(String(36), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    assigned_to = Column(String(36), ForeignKey("users.id"), nullable=False)
+    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
     task_type = Column(String(50), nullable=False)  # 'follow_up', 'test_order', 'referral'
     title = Column(String(255), nullable=False)
     description_encrypted = Column(Text, nullable=True)  # Encrypted
@@ -335,7 +350,7 @@ class CareTask(UUIDMixin, TimestampMixin, Base):
     priority = Column(String(20), default="medium", nullable=False)  # 'low', 'medium', 'high', 'urgent'
     status = Column(String(20), default="pending", nullable=False)  # 'pending', 'in_progress', 'completed', 'cancelled'
     completed_at = Column(DateTime, nullable=True)
-    completed_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    completed_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     
     # Relationships
     patient = relationship("Patient", back_populates="tasks")
@@ -376,8 +391,8 @@ class Document(UUIDMixin, TimestampMixin, Base):
     """Patient documents"""
     __tablename__ = "documents"
     
-    patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    document_type = Column(SQLEnum(DocumentType), nullable=False)
+    patient_id = Column(String(36), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    document_type = Column(String(20), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     original_filename = Column(String(255), nullable=False)
@@ -385,13 +400,13 @@ class Document(UUIDMixin, TimestampMixin, Base):
     file_size = Column(Integer, nullable=False)
     checksum = Column(String(64), nullable=False)  # SHA-256
     current_version = Column(Integer, default=1, nullable=False)
-    status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.ACTIVE, nullable=False)
-    uploaded_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    consent_id = Column(PGUUID(as_uuid=True), ForeignKey("consent_records.id"), nullable=True)
-    tags = Column(ARRAY(String), nullable=True)
+    status = Column(String(20), default=DocumentStatus.ACTIVE, nullable=False)
+    uploaded_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    consent_id = Column(String(36), ForeignKey("consent_records.id"), nullable=True)
+    tags = Column(JSON, nullable=True)
     retention_until = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
-    deleted_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    deleted_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     deletion_reason = Column(Text, nullable=True)
     
     # Relationships
@@ -413,12 +428,12 @@ class DocumentVersion(UUIDMixin, TimestampMixin, Base):
     """Document version history"""
     __tablename__ = "document_versions"
     
-    document_id = Column(PGUUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(String(36), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     version_number = Column(Integer, nullable=False)
     file_type = Column(String(100), nullable=False)
     file_size = Column(Integer, nullable=False)
     checksum = Column(String(64), nullable=False)
-    uploaded_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(String(36), ForeignKey("users.id"), nullable=False)
     notes = Column(Text, nullable=True)
     
     # Relationships
@@ -455,7 +470,7 @@ class RetentionSchedule(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "retention_schedule"
     
     resource_type = Column(String(50), nullable=False)
-    resource_id = Column(PGUUID(as_uuid=True), nullable=False)
+    resource_id = Column(String(36), nullable=False)
     creation_date = Column(DateTime, nullable=False)
     last_access_date = Column(DateTime, nullable=True)
     retention_until = Column(DateTime, nullable=False)
@@ -476,15 +491,15 @@ class SecurityIncident(UUIDMixin, TimestampMixin, Base):
     """Security incident and breach tracking"""
     __tablename__ = "security_incidents"
     
-    incident_type = Column(SQLEnum(IncidentType), nullable=False)
-    severity = Column(SQLEnum(IncidentSeverity), nullable=False)
+    incident_type = Column(String(20), nullable=False)
+    severity = Column(String(20), nullable=False)
     detected_at = Column(DateTime, nullable=False)
     detected_by = Column(String(50), nullable=True)  # 'system', 'user', 'audit'
     description = Column(Text, nullable=False)
-    affected_patients = Column(ARRAY(PGUUID(as_uuid=True)), nullable=True)
+    affected_patients = Column(JSON, nullable=True)
     affected_records = Column(Integer, default=0, nullable=False)
-    users_involved = Column(ARRAY(PGUUID(as_uuid=True)), nullable=True)
-    status = Column(SQLEnum(IncidentStatus), default=IncidentStatus.INVESTIGATING, nullable=False)
+    users_involved = Column(JSON, nullable=True)
+    status = Column(String(20), default=IncidentStatus.INVESTIGATING, nullable=False)
     investigation_notes = Column(Text, nullable=True)
     mitigation_steps = Column(Text, nullable=True)
     notification_sent = Column(Boolean, default=False, nullable=False)
@@ -507,12 +522,12 @@ class BreachNotification(UUIDMixin, TimestampMixin, Base):
     """Breach notification records"""
     __tablename__ = "breach_notifications"
     
-    incident_id = Column(PGUUID(as_uuid=True), ForeignKey("security_incidents.id", ondelete="CASCADE"), nullable=False)
+    incident_id = Column(String(36), ForeignKey("security_incidents.id", ondelete="CASCADE"), nullable=False)
     notification_type = Column(String(50), nullable=False)  # 'patient', 'hhs', 'media'
     recipient_type = Column(String(50), nullable=False)  # 'patient', 'hhs', 'media_outlet'
     recipient_email = Column(String(255), nullable=True)
     sent_at = Column(DateTime, nullable=True)
-    sent_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    sent_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     delivery_status = Column(String(20), nullable=True)  # 'sent', 'delivered', 'failed'
     content = Column(Text, nullable=True)
     
@@ -536,7 +551,7 @@ class ICD10Code(Base):
     category = Column(String(100), nullable=True)
     chapter = Column(String(100), nullable=True)
     is_billable = Column(Boolean, default=True, nullable=False)
-    synonyms = Column(ARRAY(String), nullable=True)  # Array of synonyms
+    synonyms = Column(JSON, nullable=True)  # Array of synonyms
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Indexes
@@ -585,9 +600,9 @@ class RequestMetric(Base):
     """Request metrics for monitoring"""
     __tablename__ = "request_metrics"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     request_id = Column(String(100), nullable=False)
-    user_id = Column(PGUUID(as_uuid=True), nullable=True)
+    user_id = Column(String(36), nullable=True)
     endpoint = Column(String(255), nullable=False)
     method = Column(String(10), nullable=False)
     status_code = Column(Integer, nullable=False)

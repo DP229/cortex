@@ -20,7 +20,7 @@ import structlog
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from cortex.database import get_database_manager, get_db_session
+from cortex.database import get_database_manager, get_session
 from cortex.models import (
     Patient, ConsentRecord, ConsentType,
     AuditLog, User, UserRole
@@ -208,7 +208,7 @@ Healthcare Provider: _______________
         """Get database session"""
         if self.db:
             return self.db
-        return get_db_session()
+        return get_session()
     
     def create_consent(
         self,

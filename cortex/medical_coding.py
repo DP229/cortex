@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_, and_
 
-from cortex.database import get_database_manager, get_db_session
+from cortex.database import get_database_manager, get_session
 from cortex.models import ICD10Code, CPTCode, CodeMapping
 
 logger = structlog.get_logger()
@@ -88,7 +88,7 @@ class MedicalCoder:
         """Get database session"""
         if self.db:
             return self.db
-        return get_db_session()
+        return get_session()
     
     # === ICD-10 Methods ===
     

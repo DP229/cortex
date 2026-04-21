@@ -344,13 +344,13 @@ def require_permission(permission: str):
             logger.warning(
                 "permission_denied",
                 user_id=str(current_user.id),
-                user_role=current_user.role.value,
+                user_role=current_user.role,
                 required_permission=permission,
             )
             
             raise PermissionDenied(
                 f"Permission denied: {permission} required. "
-                f"Your role ({current_user.role.value}) does not have this permission."
+                f"Your role ({current_user.role}) does not have this permission."
             )
         
         # Log granted access
@@ -391,11 +391,11 @@ def require_phi_access():
             logger.warning(
                 "phi_access_denied",
                 user_id=str(current_user.id),
-                user_role=current_user.role.value,
+                user_role=current_user.role,
             )
             
             raise PermissionDenied(
-                f"PHI access denied. Your role ({current_user.role.value}) does not "
+                f"PHI access denied. Your role ({current_user.role}) does not "
                 f"have permission to access Protected Health Information."
             )
         
@@ -403,7 +403,7 @@ def require_phi_access():
         logger.info(
             "phi_access_granted",
             user_id=str(current_user.id),
-            user_role=current_user.role.value,
+            user_role=current_user.role,
         )
         
         return current_user
@@ -511,4 +511,12 @@ __all__ = [
     "require_phi_access",
     "ResourceAccessControl",
     "ROLE_PERMISSIONS",
+    "get_user_permissions",
 ]
+
+
+def get_user_permissions(user) -> Set[Permission]:
+    """Get permissions for a user based on their role."""
+    if hasattr(user, 'role'):
+        return ROLE_PERMISSIONS.get(user.role, set())
+    return set()

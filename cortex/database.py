@@ -14,7 +14,7 @@ import logging
 from typing import Optional, ContextManager
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session, scoped_session
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import SQLAlchemyError, DisconnectionError
@@ -44,7 +44,7 @@ class DatabaseManager:
         
         # Using connection
         with db.get_connection() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
     """
     
     def __init__(
@@ -67,10 +67,7 @@ class DatabaseManager:
             pool_recycle: Recycle connections after N seconds
             echo: Echo SQL statements to logs (for debugging)
         """
-        self.database_url = database_url or os.getenv(
-            "DATABASE_URL",
-            "postgresql://healthcare:password@localhost:5432/healthcare"
-        )
+        self.database_url = database_url
         self.pool_size = pool_size
         self.max_overflow = max_overflow
         self.pool_timeout = pool_timeout
@@ -89,17 +86,39 @@ class DatabaseManager:
         
         logger.info(f"Initializing database connection pool (size={self.pool_size})")
         
-        # Create engine with pooling
-        self._engine = create_engine(
-            self.database_url,
-            poolclass=QueuePool,
-            pool_size=self.pool_size,
-            max_overflow=self.max_overflow,
-            pool_timeout=self.pool_timeout,
-            pool_recycle=self.pool_recycle,
-            pool_pre_ping=True,  # Check connection health before using
-            echo=self.echo
+        # Detect SQLite vs PostgreSQL based on DATABASE_URL
+        self.database_url = self.database_url or os.getenv(
+            "DATABASE_URL",
+            "sqlite:///cortex.db"
         )
+        is_sqlite = not self.database_url.startswith("postgresql://")
+        
+        if is_sqlite:
+            sqlite_path = os.path.join(os.path.dirname(__file__), "..", "cortex.db")
+            self.database_url = f"sqlite:///{sqlite_path}"
+            logger.warning(f"SQLite mode — using {sqlite_path}")
+        
+        if is_sqlite:
+            # SQLite: no pooling, no pre_ping
+            logger.warning("SQLite detected — falling back to simple connection mode")
+            self._engine = create_engine(
+                self.database_url,
+                connect_args={"check_same_thread": False},
+                poolclass=None,
+                echo=self.echo
+            )
+        else:
+            # PostgreSQL: full pooling
+            self._engine = create_engine(
+                self.database_url,
+                poolclass=QueuePool,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+                pool_pre_ping=True,  # Check connection health before using
+                echo=self.echo
+            )
         
         # Add event listeners for connection management
         self._add_event_listeners()
@@ -185,7 +204,7 @@ class DatabaseManager:
         
         Usage:
             with db.get_connection() as conn:
-                result = conn.execute("SELECT 1")
+                result = conn.execute(text("SELECT 1"))
         """
         conn = None
         try:
@@ -207,7 +226,7 @@ class DatabaseManager:
         """
         try:
             with self.get_connection() as conn:
-                result = conn.execute("SELECT 1")
+                result = conn.execute(text("SELECT 1"))
                 return result.scalar() == 1
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

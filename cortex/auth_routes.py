@@ -20,7 +20,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, validator
 import structlog
 
-from cortex.securityauth import (
+from cortex.security.auth import (
     AuthManager,
     get_auth_manager,
     get_current_user,
@@ -138,7 +138,8 @@ def encrypt_user_name(full_name: str) -> str:
     encryption_key = os.getenv("ENCRYPTION_KEY")
     encryption = EncryptionManager(encryption_key.encode() if encryption_key else None)
     encrypted = encryption.encrypt(full_name)
-    return encrypted["ciphertext"]
+    # Store both ciphertext and nonce (joined by ':') for proper decryption
+    return f"{encrypted['ciphertext']}:{encrypted['nonce']}"
 
 
 def decrypt_user_name(encrypted_name: str) -> str:
@@ -146,7 +147,10 @@ def decrypt_user_name(encrypted_name: str) -> str:
     import os
     encryption_key = os.getenv("ENCRYPTION_KEY")
     encryption = EncryptionManager(encryption_key.encode() if encryption_key else None)
-    return encryption.decrypt({"ciphertext": encrypted_name, "nonce": ""})
+    parts = encrypted_name.split(":")
+    if len(parts) != 2:
+        return "[Redacted]"  # Legacy format or invalid
+    return encryption.decrypt({"ciphertext": parts[0], "nonce": parts[1]})
 
 
 # === Endpoints ===
@@ -191,7 +195,7 @@ async def register(
             "user_registered",
             user_id=str(user.id),
             email=user.email,
-            role=user.role.value,
+            role=user.role,
             ip_address=client_ip
         )
         
@@ -202,7 +206,7 @@ async def register(
             id=str(user.id),
             email=user.email,
             full_name=full_name,
-            role=user.role.value,
+            role=user.role,
             is_active=user.is_active,
             last_login=user.last_login
         )
@@ -366,7 +370,7 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
             id=str(current_user.id),
             email=current_user.email,
             full_name=full_name,
-            role=current_user.role.value,
+            role=current_user.role,
             is_active=current_user.is_active,
             last_login=current_user.last_login
         )
@@ -468,7 +472,7 @@ async def list_users(
     - offset: Pagination offset
     """
     # Check admin role
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -481,7 +485,7 @@ async def list_users(
             query = session.query(User)
             
             if role:
-                query = query.filter(User.role == UserRole(role))
+                query = query.filter(User.role == role)
             
             if is_active is not None:
                 query = query.filter(User.is_active == is_active)
@@ -496,7 +500,7 @@ async def list_users(
                     id=str(user.id),
                     email=user.email,
                     full_name=full_name,
-                    role=user.role.value,
+                    role=user.role,
                     is_active=user.is_active,
                     last_login=user.last_login
                 ))
@@ -535,7 +539,7 @@ async def deactivate_user(
     User data is retained for audit purposes (HIPAA requirement).
     """
     # Check admin role
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -600,7 +604,7 @@ async def activate_user(
 ):
     """Activate user account (admin only)"""
     # Check admin role
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"

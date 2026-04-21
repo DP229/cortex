@@ -25,7 +25,7 @@ import structlog
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from cortex.database import get_database_manager, get_db_session
+from cortex.database import get_database_manager, get_session
 from cortex.models import (
     Document, DocumentVersion, Patient, ConsentRecord, ConsentType,
     RetentionPolicy, RetentionSchedule, AuditLog
@@ -143,7 +143,7 @@ class DocumentManager:
         """Get database session"""
         if self.db:
             return self.db
-        return get_db_session()
+        return get_session()
     
     def _generate_checksum(self, data: bytes) -> str:
         """Generate SHA-256 checksum"""
@@ -171,7 +171,7 @@ class DocumentManager:
         document_type: DocumentType,
         title: str,
         description: Optional[str] = None,
-        uploaded_by: UUID,
+        uploaded_by: Optional[UUID] = None,
         requires_consent: bool = True,
         consent_id: Optional[UUID] = None,
         tags: Optional[List[str]] = None

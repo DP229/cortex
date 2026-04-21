@@ -156,12 +156,16 @@ class AuthManager:
                 email=email,
                 password_hash=password_hash,
                 full_name_encrypted=encrypted_name["ciphertext"],
-                role=UserRole(role),
+                role=role,
                 is_active=True
             )
             
             session.add(user)
             session.commit()
+            session.refresh(user)
+            # Expunge so detached objects don't cause session errors on access
+            session.expunge(user)
+            session.expunge_all()
             
             # Audit log
             self._audit_log(
@@ -314,7 +318,7 @@ class AuthManager:
                 "token_type": "bearer",
                 "expires_in": self.jwt_expiration_minutes * 60,
                 "user_id": str(user.id),
-                "role": user.role.value
+                "role": user.role
             }
     
     def logout(self, user_id: UUID, refresh_token: str = None) -> bool:
@@ -473,7 +477,7 @@ class AuthManager:
         db = get_database_manager()
         
         with db.get_session() as session:
-            user = session.query(User).filter(User.id == UUID(user_id)).first()
+            user = session.query(User).filter(User.id == user_id).first()
             
             if not user:
                 raise AuthenticationError("User not found")
@@ -495,7 +499,7 @@ class AuthManager:
         payload = {
             "sub": str(user.id),
             "email": user.email,
-            "role": user.role.value,
+            "role": user.role,
             "iat": int(now.timestamp()),
             "exp": int(expiry.timestamp()),
             "type": "access"

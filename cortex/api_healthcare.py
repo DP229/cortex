@@ -19,6 +19,7 @@ Run:
 import os
 import time
 from typing import Optional, Dict, Any
+from uuid import UUID
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request
@@ -78,6 +79,7 @@ async def lifespan(app: FastAPI):
         db = get_database_manager()
         if db.health_check():
             logger.info("Database connection successful")
+            db.create_tables()  # Auto-create tables on startup
         else:
             logger.warning("Database health check failed")
     except Exception as e:
