@@ -1,15 +1,25 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Brain, Database, ScrollText, Activity, Settings, LogOut, Users, FileCheck } from 'lucide-react'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import {
+  LayoutDashboard,
+  Database,
+  FileText,
+  ScrollText,
+  Settings,
+  LogOut,
+  AlertTriangle,
+  Box,
+  CheckSquare,
+  Network,
+} from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './pages/Dashboard'
-import AgentChat from './pages/AgentChat'
-import KnowledgeBase from './pages/KnowledgeBase'
-import MemoryPage from './pages/MemoryPage'
+import AssetsPage from './pages/AssetsPage'
+import RequirementsPage from './pages/RequirementsPage'
+import SoupPage from './pages/SoupPage'
+import TestRecordsPage from './pages/TestRecordsPage'
+import RTMPage from './pages/RTMPage'
 import AuditLog from './pages/AuditLog'
-import Metrics from './pages/Metrics'
 import LoginPage from './pages/LoginPage'
-import Patients from './pages/Patients'
-import Consent from './pages/Consent'
 import './App.css'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -20,37 +30,40 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 }
 
 function Sidebar() {
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   return (
     <nav className="sidebar">
-      <div className="sidebar-logo">🧠 Cortex</div>
+      <div className="sidebar-logo">🚄 Cortex</div>
       <div className="sidebar-nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <LayoutDashboard size={16} /> Dashboard
         </NavLink>
-        <NavLink to="/agent" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Brain size={16} /> Agent
+        <NavLink to="/assets" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Box size={16} /> Assets
         </NavLink>
-        <NavLink to="/knowledge" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Database size={16} /> Knowledge Base
+        <NavLink to="/requirements" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <FileText size={16} /> Requirements
         </NavLink>
-        <NavLink to="/memory" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <ScrollText size={16} /> Memory
+        <NavLink to="/soups" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Database size={16} /> SOUPs
         </NavLink>
-        <NavLink to="/patients" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Users size={16} /> Patients
+        <NavLink to="/tests" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <CheckSquare size={16} /> Test Records
         </NavLink>
-        <NavLink to="/consent" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <FileCheck size={16} /> Consent
+        <NavLink to="/rtm" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Network size={16} /> RTM
+        </NavLink>
+        <NavLink to="/incidents" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <AlertTriangle size={16} /> Incidents
         </NavLink>
         <NavLink to="/audit" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <ScrollText size={16} /> Audit Log
         </NavLink>
-        <NavLink to="/metrics" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Activity size={16} /> Metrics
-        </NavLink>
       </div>
       <div className="nav-bottom">
+        <div className="nav-user-info">
+          <span className="text-muted text-sm">{user?.role?.replace('_', ' ')}</span>
+        </div>
         <button className="nav-item" style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
           <Settings size={16} /> Settings
         </button>
@@ -75,13 +88,13 @@ export default function App() {
                 <main className="main-content">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/agent" element={<AgentChat />} />
-                    <Route path="/knowledge" element={<KnowledgeBase />} />
-                    <Route path="/memory" element={<MemoryPage />} />
-                    <Route path="/patients" element={<Patients />} />
-                    <Route path="/consent" element={<Consent />} />
+                    <Route path="/assets" element={<AssetsPage />} />
+                    <Route path="/requirements" element={<RequirementsPage />} />
+                    <Route path="/soups" element={<SoupPage />} />
+                    <Route path="/tests" element={<TestRecordsPage />} />
+                    <Route path="/rtm" element={<RTMPage />} />
                     <Route path="/audit" element={<AuditLog />} />
-                    <Route path="/metrics" element={<Metrics />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>
               </div>

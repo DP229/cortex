@@ -16,6 +16,7 @@ export default function LoginPage() {
     setError('')
     try {
       await login(email, password)
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -26,8 +27,11 @@ export default function LoginPage() {
   return (
     <div className="login-bg">
       <div className="login-card">
-        <div className="login-logo">🧠 Cortex</div>
-        <p className="login-subtitle">Compliance-ready AI for safety-critical industries</p>
+        <div className="login-logo">🚄 Cortex</div>
+        <p className="login-subtitle">Railway Safety Compliance Platform</p>
+        <p className="login-subtitle" style={{ fontSize: 12, marginTop: 4 }}>
+          EN 50128 Class B · IEC 62443
+        </p>
         <form onSubmit={handleSubmit} className="login-form">
           {error && <div className="login-error">{error}</div>}
           <input
@@ -51,7 +55,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="login-note">
-          Roles: <strong>admin</strong> · <strong>clinician</strong> · <strong>researcher</strong> · <strong>auditor</strong>
+          Roles: <strong>admin</strong> · <strong>safety_engineer</strong> · <strong>auditor</strong> · <strong>viewer</strong>
         </p>
       </div>
     </div>

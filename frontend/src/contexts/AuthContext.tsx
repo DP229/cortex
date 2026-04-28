@@ -9,7 +9,6 @@ interface User {
 
 interface AuthState {
   user: User | null
-  token: string | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
@@ -26,63 +25,72 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem('cortex_token')
-    if (stored) {
-      setToken(stored)
-      fetchUser(stored)
-    } else {
-      setLoading(false)
-    }
-  }, [])
-
-  const fetchUser = async (t: string) => {
-    try {
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${t}` },
+    // Validate existing session by calling /api/auth/me
+    // The access_token cookie is sent automatically by the browser
+    fetch('/api/auth/me', {
+      credentials: 'include',  // Required for httpOnly cookie to be sent
+    })
+      .then(res => {
+        if (res.ok) return res.json()
+        return null
       })
-      if (res.ok) {
-        const data = await res.json()
-        setUser(data)
-      } else {
-        localStorage.removeItem('cortex_token')
-        setToken(null)
-      }
-    } catch {
-      localStorage.removeItem('cortex_token')
-      setToken(null)
-    } finally {
-      setLoading(false)
-    }
-  }
+      .then(data => {
+        if (data) {
+          setUser({
+            id: data.id ?? data.user_id,
+            email: data.email,
+            full_name: data.full_name ?? '',
+            role: data.role,
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   const login = async (email: string, password: string) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
+      credentials: 'include',  // Receive httpOnly cookie
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
     if (!res.ok) {
-      const err = await res.json()
+      const err = await res.json().catch(() => ({ detail: 'Login failed' }))
       throw new Error(err.detail || 'Login failed')
     }
     const data = await res.json()
-    localStorage.setItem('cortex_token', data.access_token)
-    setToken(data.access_token)
-    setUser({ id: data.user_id, email, full_name: '', role: data.role })
+    // Backend sets httpOnly cookie; fetch /me to get user details
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' })
+    if (meRes.ok) {
+      const meData = await meRes.json()
+      setUser({
+        id: meData.id ?? meData.user_id,
+        email: meData.email,
+        full_name: meData.full_name ?? '',
+        role: meData.role,
+      })
+    } else {
+      // Fallback: populate from login response
+      setUser({ id: data.user_id, email, full_name: '', role: data.role })
+    }
   }
 
-  const logout = () => {
-    localStorage.removeItem('cortex_token')
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',  // Send + clear httpOnly cookie
+      })
+    } catch {}
     setUser(null)
-    setToken(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,14 +1,9 @@
 const BASE = '/api'
 
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('cortex_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 async function handleRes(res: Response) {
   if (res.status === 401) {
-    localStorage.removeItem('cortex_token')
-    window.location.reload()
+    // Cookie expired or invalid — redirect to login
+    window.location.href = '/login'
     throw new Error('Unauthorized')
   }
   if (!res.ok) {
@@ -20,15 +15,37 @@ async function handleRes(res: Response) {
 
 export const api = {
   get: (path: string) =>
-    fetch(`${BASE}${path}`, { headers: { 'Content-Type': 'application/json', ...authHeaders() } })
+    fetch(`${BASE}${path}`, { credentials: 'include' })
       .then(handleRes),
   post: (path: string, body: object) =>
-    fetch(`${BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) })
+    fetch(`${BASE}${path}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
       .then(handleRes),
   put: (path: string, body?: object) =>
-    fetch(`${BASE}${path}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, ...(body ? { body: JSON.stringify(body) } : {}) })
+    fetch(`${BASE}${path}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
+      .then(handleRes),
+  patch: (path: string, body: object) =>
+    fetch(`${BASE}${path}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
       .then(handleRes),
   del: (path: string) =>
-    fetch(`${BASE}${path}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...authHeaders() } })
+    fetch(`${BASE}${path}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
       .then(handleRes),
 }
