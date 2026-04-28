@@ -106,7 +106,7 @@ def run_server(host: str, port: int, reload: bool):
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Healthcare Compliance Agent - HIPAA-Compliant AI Knowledge Base"
+        description="Cortex Railway Safety Platform - EN 50128 Class B Compliant AI Knowledge Base"
     )
     
     parser.add_argument(

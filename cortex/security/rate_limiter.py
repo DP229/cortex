@@ -1,9 +1,9 @@
 """
 Cortex Rate Limiting - Brute Force Protection
 
-This module provides rate limiting for HIPAA compliance:
+EN 50128 Class B compliant rate limiting:
 - Prevents brute force attacks on authentication
-- Limits API abuse
+- Limits API abuse per IEC 62443
 - Configurable limits per endpoint
 - IP-based and user-based limiting
 """
@@ -55,9 +55,9 @@ class RateLimiter:
         'api_write': RateLimitConfig(max_requests=50, window_seconds=60, block_duration_seconds=120),  # 50 per minute
         'api_delete': RateLimitConfig(max_requests=10, window_seconds=60, block_duration_seconds=300),  # 10 per minute
         
-        # PHI access (even stricter)
-        'phi_access': RateLimitConfig(max_requests=30, window_seconds=60, block_duration_seconds=300),  # 30 per minute, 5 min block
-        'phi_export': RateLimitConfig(max_requests=5, window_seconds=300, block_duration_seconds=900),  # 5 per 5 min, 15 min block
+        # Railway asset/document access (stricter)
+        'document_access': RateLimitConfig(max_requests=30, window_seconds=60, block_duration_seconds=300),  # 30 per minute, 5 min block
+        'audit_export': RateLimitConfig(max_requests=5, window_seconds=300, block_duration_seconds=900),  # 5 per 5 min, 15 min block
         
         # Administrative endpoints
         'admin': RateLimitConfig(max_requests=20, window_seconds=60, block_duration_seconds=300),  # 20 per minute

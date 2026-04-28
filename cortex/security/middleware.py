@@ -107,9 +107,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         sensitive_prefixes = [
             "/auth/",
             "/audit/",
-            "/patient/",
-            "/phi/",
-            "/medical/",
+            "/documents/",
             "/admin/"
         ]
         
@@ -119,9 +117,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Rate limiting middleware for authentication endpoints
-    
+
     This middleware applies stricter rate limits to authentication
-    and PHI access endpoints to prevent brute force attacks.
+    and sensitive railway safety endpoints to prevent brute force attacks.
     """
     
     # Rate limits by path pattern

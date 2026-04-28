@@ -1,14 +1,14 @@
 """
-Cortex Security Package - IEC 62443 Compliant
+Cortex Security Package - IEC 62443 / EN 50128 Class B Compliant
 
-HIPAA-compliant security features:
+Railway safety compliant security features:
 - Authentication (JWT)
 - Authorization (RBAC)
-- Encryption (AES-256)
-- PHI Protection
+- Encryption (AES-256-GCM)
+- Railway Data Minimization
 - IAM Gateway (Ollama protection)
-- Immutable Audit Logging
-- Data Minimization (PII masking)
+- Immutable Audit Logging (Merkle tree)
+- PII masking for logs
 """
 
 from cortex.security.encryption import (
@@ -19,6 +19,7 @@ from cortex.security.encryption import (
     generate_encryption_key,
     load_encryption_key,
     mask_phi,
+    mask_sensitive_data,
     secure_delete,
 )
 

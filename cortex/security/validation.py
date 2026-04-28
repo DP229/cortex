@@ -1,12 +1,12 @@
 """
 Cortex Security Utilities - Input Validation & Sanitization
 
-This module provides security utilities for HIPAA compliance:
+EN 50128 / IEC 62443 compliant security utilities:
 - Input validation and sanitization
 - SQL injection prevention
 - XSS prevention
 - Path traversal prevention
-- Security headers
+- Security headers for railway safety systems
 """
 
 import re
@@ -205,7 +205,7 @@ class SecurityValidator:
     @staticmethod
     def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
         """
-        Validate password strength (HIPAA requirements)
+        Validate password strength (EN 50128 / IEC 62443 requirements)
         
         Requirements:
         - Minimum 12 characters

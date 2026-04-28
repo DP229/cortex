@@ -8,7 +8,7 @@ FastAPI endpoints for authentication:
 - Logout
 - User management
 
-All endpoints log to audit trail for HIPAA compliance.
+All endpoints log to audit trail for EN 50128 compliance.
 """
 
 from datetime import datetime, timedelta
@@ -29,7 +29,7 @@ from cortex.security.auth import (
     AccountLockedError,
     TokenExpiredError,
 )
-from cortex.database import get_session
+from cortex.database import get_session, get_database_manager
 from cortex.models import User, UserRole, AuditLog
 from cortex.security.encryption import EncryptionManager
 
@@ -62,7 +62,7 @@ class UserRegisterRequest(BaseModel):
     
     @validator('role')
     def validate_role(cls, v):
-        valid_roles = ["admin", "clinician", "researcher", "auditor"]
+        valid_roles = [r.value for r in UserRole]
         if v not in valid_roles:
             raise ValueError(f'Role must be one of: {valid_roles}')
         return v
@@ -536,7 +536,7 @@ async def deactivate_user(
     Deactivate user account (admin only)
     
     **Note:** This does not delete the user, only marks as inactive.
-    User data is retained for audit purposes (HIPAA requirement).
+    User data is retained for audit purposes (EN 50128 requirement — minimum 10 years).
     """
     # Check admin role
     if current_user.role != "admin":

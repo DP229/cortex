@@ -1,11 +1,11 @@
 """
 Structured Logging Configuration
 
-Provides HIPAA-compliant audit logging:
+Provides EN 50128 / IEC 62443 compliant audit logging:
 - Structured JSON logs
 - Separate audit log file
-- Log rotation
-- HIPAA-compliant format
+- Log rotation with 10-year retention support
+- Railway safety compliance format
 """
 
 import os
@@ -115,7 +115,7 @@ def setup_logging(
 
 
 def get_audit_logger():
-    """Get audit logger for HIPAA-compliant logging"""
+    """Get audit logger for EN 50128 compliant logging"""
     return structlog.get_logger('audit')
 
 
@@ -123,7 +123,7 @@ class AuditLogMiddleware:
     """
     FastAPI middleware for audit logging
     
-    Logs all requests and responses for HIPAA compliance
+    Logs all requests and responses for EN 50128 / IEC 62443 compliance
     """
     
     def __init__(self, app):

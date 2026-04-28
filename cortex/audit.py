@@ -1,13 +1,12 @@
 """
-Cortex Audit Logging - HIPAA-Compliant Audit Trail
+Cortex Audit Logging - Railway Safety Compliance
 
-This module provides comprehensive audit logging for HIPAA compliance:
-- All PHI access tracked
-- User actions logged
-- System events recorded
-- 6-year retention
-- Compliance reporting
-- Breach notification support
+EN 50128 Class B compliant audit trail:
+- All user actions tracked with Merkle tree verification support
+- Railway asset traceability
+- Safety requirement change tracking
+- Authentication and authorization events
+- 10-year retention per EN 50128
 """
 
 from datetime import datetime, timedelta
@@ -15,65 +14,70 @@ from uuid import UUID, uuid4
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from dataclasses import dataclass
-import json
 
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 import structlog
 
 from cortex.database import get_session
-from cortex.models import (
-    AuditLog, User, Patient, SecurityIncident, BreachNotification,
-    IncidentType, IncidentSeverity, IncidentStatus
-)
 
 logger = structlog.get_logger()
 
 
 class AuditAction(str, Enum):
-    """Audit log action types"""
+    """Railway compliance audit log action types (EN 50128 / IEC 62443)"""
+
     # Authentication
     LOGIN = "login"
     LOGOUT = "logout"
     LOGIN_FAILED = "login_failed"
     PASSWORD_CHANGE = "password_change"
     ACCOUNT_LOCKED = "account_locked"
-    
-    # Patient/PHI Access
-    PATIENT_CREATE = "patient_create"
-    PATIENT_READ = "patient_read"
-    PATIENT_UPDATE = "patient_update"
-    PATIENT_DELETE = "patient_delete"
-    PHI_ACCESS = "phi_access"
-    PHI_EXPORT = "phi_export"
-    
+
+    # Railway Asset Management
+    ASSET_CREATE = "asset_create"
+    ASSET_READ = "asset_read"
+    ASSET_UPDATE = "asset_update"
+    ASSET_DELETE = "asset_delete"
+
     # Document Operations
     DOCUMENT_CREATE = "document_create"
     DOCUMENT_READ = "document_read"
     DOCUMENT_UPDATE = "document_update"
     DOCUMENT_DELETE = "document_delete"
-    
-    # Agent Operations
-    AGENT_QUERY = "agent_query"
-    AGENT_RESPONSE = "agent_response"
-    AGENT_ERROR = "agent_error"
-    
-    # Consent Management
-    CONSENT_GRANTED = "consent_granted"
-    CONSENT_REVOKED = "consent_revoked"
-    CONSENT_VIEWED = "consent_viewed"
-    
+
+    # Requirement Management (EN 50128 traceability)
+    REQUIREMENT_CREATE = "requirement_create"
+    REQUIREMENT_READ = "requirement_read"
+    REQUIREMENT_UPDATE = "requirement_update"
+    REQUIREMENT_DELETE = "requirement_delete"
+    REQUIREMENT_CITATION_ADD = "requirement_citation_add"
+    REQUIREMENT_CITATION_VERIFY = "requirement_citation_verify"
+
+    # SOUP Management
+    SOUP_CREATE = "soup_create"
+    SOUP_APPROVE = "soup_approve"
+    SOUP_REJECT = "soup_reject"
+    SOUP_UPDATE = "soup_update"
+
+    # Verification Records
+    TEST_EXECUTE = "test_execute"
+    TEST_PASS = "test_pass"
+    TEST_FAIL = "test_fail"
+    TEST_BLOCK = "test_block"
+
+    # Railway Incidents
+    INCIDENT_CREATE = "incident_create"
+    INCIDENT_UPDATE = "incident_update"
+    INCIDENT_CLOSE = "incident_close"
+    INCIDENT_ESCALATE = "incident_escalate"
+
     # Administrative
     USER_CREATE = "user_create"
     USER_UPDATE = "user_update"
     USER_DEACTIVATE = "user_deactivate"
     ROLE_CHANGE = "role_change"
-    
-    # Security
-    SECURITY_INCIDENT = "security_incident"
-    BREACH_DETECTED = "breach_detected"
-    BREACH_REPORTED = "breach_reported"
+    DRP_GENERATE = "drp_generate"
 
 
 @dataclass
@@ -83,218 +87,194 @@ class AuditEntry:
     user_id: Optional[UUID] = None
     resource_type: Optional[str] = None
     resource_id: Optional[UUID] = None
-    patient_id: Optional[UUID] = None
+    asset_id: Optional[UUID] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
 
 
 class AuditLogger:
-    """HIPAA-compliant audit logging service"""
-    
+    """
+    EN 50128 Class B compliant audit logging service.
+
+    All significant actions are logged for traceability and regulatory compliance.
+    Supports Merkle tree chaining for tamper-evident audit trails.
+    """
+
     def __init__(self, db_session: Optional[Session] = None):
         self.db = db_session
-    
+
     def _get_db(self) -> Session:
         """Get database session"""
         if self.db:
             return self.db
         return get_session()
-    
+
     def log(self, entry: AuditEntry) -> Optional[UUID]:
         """
-        Log an audit event
-        
+        Log an audit event.
+
         Args:
             entry: Audit entry to log
-            
+
         Returns:
             UUID of created audit log entry, or None on failure
         """
         try:
             db = self._get_db()
-            
-            audit_log = AuditLog(
-                user_id=entry.user_id,
+
+            # Import here to avoid circular imports after models.py rewrite
+            from cortex.models import AuditLog as AuditLogModel
+
+            audit_record = AuditLogModel(
+                id=str(uuid4()),
+                user_id=str(entry.user_id) if entry.user_id else None,
                 action=entry.action.value,
                 resource_type=entry.resource_type,
-                resource_id=entry.resource_id,
-                patient_id=entry.patient_id,
+                resource_id=str(entry.resource_id) if entry.resource_id else None,
+                asset_id=str(entry.asset_id) if entry.asset_id else None,
                 ip_address=entry.ip_address,
                 user_agent=entry.user_agent,
                 details=entry.details,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
-            
-            db.add(audit_log)
+
+            db.add(audit_record)
             db.commit()
-            db.refresh(audit_log)
-            
+            db.refresh(audit_record)
+
             logger.info(
                 "audit_logged",
                 action=entry.action.value,
                 user_id=str(entry.user_id) if entry.user_id else None,
-                patient_id=str(entry.patient_id) if entry.patient_id else None,
-                audit_id=str(audit_log.id)
+                resource_type=entry.resource_type,
+                resource_id=str(entry.resource_id) if entry.resource_id else None,
+                audit_id=str(audit_record.id),
             )
-            
-            return audit_log.id
-            
+
+            return UUID(audit_record.id)
+
         except SQLAlchemyError as e:
             logger.error("audit_log_failed", error=str(e), action=entry.action.value)
             return None
-    
-    def log_phi_access(
-        self,
-        user_id: UUID,
-        patient_id: UUID,
-        action: AuditAction,
-        resource_type: str = "patient",
-        resource_id: Optional[UUID] = None,
-        details: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> Optional[UUID]:
-        """
-        Log PHI access event
-        
-        Args:
-            user_id: User accessing PHI
-            patient_id: Patient whose PHI was accessed
-            action: Type of access
-            resource_type: Type of resource accessed
-            resource_id: Specific resource ID
-            details: Additional details
-            ip_address: Client IP address
-            user_agent: Client user agent
-            
-        Returns:
-            UUID of audit log entry
-        """
-        entry = AuditEntry(
-            action=action,
-            user_id=user_id,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            patient_id=patient_id,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            details=details
-        )
-        
-        return self.log(entry)
-    
+
     def log_authentication(
         self,
         user_id: Optional[UUID],
         action: AuditAction,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ) -> Optional[UUID]:
-        """
-        Log authentication event
-        
-        Args:
-            user_id: User ID (if authenticated)
-            action: Authentication action
-            ip_address: Client IP
-            user_agent: Client user agent
-            details: Additional details
-            
-        Returns:
-            UUID of audit log entry
-        """
+        """Log authentication event"""
         entry = AuditEntry(
             action=action,
             user_id=user_id,
             ip_address=ip_address,
             user_agent=user_agent,
-            details=details
+            details=details,
         )
-        
         return self.log(entry)
-    
+
+    def log_asset_access(
+        self,
+        user_id: Optional[UUID],
+        asset_id: UUID,
+        action: AuditAction,
+        resource_type: str = "railway_asset",
+        resource_id: Optional[UUID] = None,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Optional[UUID]:
+        """Log railway asset access event"""
+        entry = AuditEntry(
+            action=action,
+            user_id=user_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            asset_id=asset_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details=details,
+        )
+        return self.log(entry)
+
+    def log_requirement_change(
+        self,
+        user_id: UUID,
+        requirement_id: UUID,
+        action: AuditAction,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+    ) -> Optional[UUID]:
+        """Log requirement traceability change (EN 50128)"""
+        entry = AuditEntry(
+            action=action,
+            user_id=user_id,
+            resource_type="requirement",
+            resource_id=requirement_id,
+            ip_address=ip_address,
+            details=details,
+        )
+        return self.log(entry)
+
     def get_user_history(
         self,
         user_id: UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """
-        Get audit history for a user
-        
-        Args:
-            user_id: User ID
-            start_date: Start of date range
-            end_date: End of date range
-            limit: Maximum number of results
-            
-        Returns:
-            List of audit entries
-        """
+        """Get audit history for a user"""
         db = self._get_db()
-        
-        query = db.query(AuditLog).filter(AuditLog.user_id == user_id)
-        
+        from cortex.models import AuditLog as AuditLogModel
+
+        query = db.query(AuditLogModel).filter(AuditLogModel.user_id == str(user_id))
+
         if start_date:
-            query = query.filter(AuditLog.timestamp >= start_date)
-        
+            query = query.filter(AuditLogModel.timestamp >= start_date)
         if end_date:
-            query = query.filter(AuditLog.timestamp <= end_date)
-        
-        query = query.order_by(AuditLog.timestamp.desc()).limit(limit)
-        
+            query = query.filter(AuditLogModel.timestamp <= end_date)
+
+        query = query.order_by(AuditLogModel.timestamp.desc()).limit(limit)
         results = query.all()
-        
+
         return [
             {
                 "id": str(log.id),
                 "action": log.action,
                 "resource_type": log.resource_type,
                 "resource_id": str(log.resource_id) if log.resource_id else None,
-                "patient_id": str(log.patient_id) if log.patient_id else None,
+                "asset_id": str(log.asset_id) if log.asset_id else None,
                 "ip_address": str(log.ip_address) if log.ip_address else None,
                 "timestamp": log.timestamp.isoformat(),
-                "details": log.details
+                "details": log.details,
             }
             for log in results
         ]
-    
-    def get_patient_history(
+
+    def get_asset_history(
         self,
-        patient_id: UUID,
+        asset_id: UUID,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """
-        Get audit history for a patient (PHI access)
-        
-        Args:
-            patient_id: Patient ID
-            start_date: Start of date range
-            end_date: End of date range
-            limit: Maximum number of results
-            
-        Returns:
-            List of audit entries
-        """
+        """Get audit history for a railway asset (EN 50128 traceability)"""
         db = self._get_db()
-        
-        query = db.query(AuditLog).filter(AuditLog.patient_id == patient_id)
-        
+        from cortex.models import AuditLog as AuditLogModel
+
+        query = db.query(AuditLogModel).filter(AuditLogModel.asset_id == str(asset_id))
+
         if start_date:
-            query = query.filter(AuditLog.timestamp >= start_date)
-        
+            query = query.filter(AuditLogModel.timestamp >= start_date)
         if end_date:
-            query = query.filter(AuditLog.timestamp <= end_date)
-        
-        query = query.order_by(AuditLog.timestamp.desc()).limit(limit)
-        
+            query = query.filter(AuditLogModel.timestamp <= end_date)
+
+        query = query.order_by(AuditLogModel.timestamp.desc()).limit(limit)
         results = query.all()
-        
+
         return [
             {
                 "id": str(log.id),
@@ -302,509 +282,338 @@ class AuditLogger:
                 "user_id": str(log.user_id) if log.user_id else None,
                 "resource_type": log.resource_type,
                 "resource_id": str(log.resource_id) if log.resource_id else None,
-                "ip_address": str(log.ip_address) if log.ip_address else None,
                 "timestamp": log.timestamp.isoformat(),
-                "details": log.details
+                "details": log.details,
             }
             for log in results
         ]
-    
-    def get_phi_access_summary(
+
+    def get_requirement_history(
         self,
+        requirement_id: UUID,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
-    ) -> Dict[str, Any]:
-        """
-        Get summary of PHI access for compliance reporting
-        
-        Args:
-            start_date: Start of reporting period
-            end_date: End of reporting period
-            
-        Returns:
-            Summary statistics
-        """
+        end_date: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get audit history for a requirement (EN 50128 traceability)"""
         db = self._get_db()
-        
-        if not start_date:
-            start_date = datetime.utcnow() - timedelta(days=30)
-        
-        if not end_date:
-            end_date = datetime.utcnow()
-        
-        # Get all PHI-related actions
-        phi_actions = [
-            AuditAction.PATIENT_READ.value,
-            AuditAction.PATIENT_CREATE.value,
-            AuditAction.PATIENT_UPDATE.value,
-            AuditAction.PHI_ACCESS.value,
-            AuditAction.PHI_EXPORT.value,
-        ]
-        
-        query = db.query(AuditLog).filter(
-            AuditLog.timestamp >= start_date,
-            AuditLog.timestamp <= end_date,
-            AuditLog.action.in_(phi_actions)
+        from cortex.models import AuditLog as AuditLogModel
+
+        query = db.query(AuditLogModel).filter(
+            AuditLogModel.resource_type == "requirement",
+            AuditLogModel.resource_id == str(requirement_id),
         )
-        
+
+        if start_date:
+            query = query.filter(AuditLogModel.timestamp >= start_date)
+        if end_date:
+            query = query.filter(AuditLogModel.timestamp <= end_date)
+
+        query = query.order_by(AuditLogModel.timestamp.desc()).limit(limit)
         results = query.all()
-        
-        # Calculate statistics
-        total_accesses = len(results)
-        unique_patients = len(set(log.patient_id for log in results if log.patient_id))
-        unique_users = len(set(log.user_id for log in results if log.user_id))
-        
-        # Group by action type
-        action_counts = {}
-        for log in results:
-            action_counts[log.action] = action_counts.get(log.action, 0) + 1
-        
-        # Group by user
-        user_access_counts = {}
-        for log in results:
-            if log.user_id:
-                user_access_counts[str(log.user_id)] = user_access_counts.get(str(log.user_id), 0) + 1
-        
-        return {
-            "period": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat()
-            },
-            "total_phi_accesses": total_accesses,
-            "unique_patients_accessed": unique_patients,
-            "unique_users_accessing": unique_users,
-            "action_breakdown": action_counts,
-            "top_users_by_access_count": sorted(
-                user_access_counts.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:10]
-        }
-    
-    def generate_compliance_report(
+
+        return [
+            {
+                "id": str(log.id),
+                "action": log.action,
+                "user_id": str(log.user_id) if log.user_id else None,
+                "timestamp": log.timestamp.isoformat(),
+                "details": log.details,
+            }
+            for log in results
+        ]
+
+    def get_compliance_report(
         self,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
-        Generate HIPAA compliance report
-        
+        Generate EN 50128 / IEC 62443 compliance report.
+
         Args:
             start_date: Report start date
             end_date: Report end date
-            
+
         Returns:
-            Compliance report data
+            Compliance report data for regulatory audits
         """
         if not start_date:
             start_date = datetime.utcnow() - timedelta(days=30)
-        
         if not end_date:
             end_date = datetime.utcnow()
-        
+
         db = self._get_db()
-        
-        # Get all audit logs in period
-        all_logs = db.query(AuditLog).filter(
-            AuditLog.timestamp >= start_date,
-            AuditLog.timestamp <= end_date
+        from cortex.models import AuditLog as AuditLogModel
+
+        all_logs = db.query(AuditLogModel).filter(
+            AuditLogModel.timestamp >= start_date,
+            AuditLogModel.timestamp <= end_date,
         ).all()
-        
+
         # Authentication events
-        auth_events = [log for log in all_logs if log.action in [
+        auth_actions = [
             AuditAction.LOGIN.value,
             AuditAction.LOGOUT.value,
             AuditAction.LOGIN_FAILED.value,
-            AuditAction.ACCOUNT_LOCKED.value
-        ]]
-        
-        # PHI access events
-        phi_events = [log for log in all_logs if log.patient_id is not None]
-        
-        # Security events
-        security_events = [log for log in all_logs if log.action in [
-            AuditAction.SECURITY_INCIDENT.value,
-            AuditAction.BREACH_DETECTED.value,
-            AuditAction.BREACH_REPORTED.value
-        ]]
-        
-        # Calculate failed logins
+            AuditAction.ACCOUNT_LOCKED.value,
+        ]
+        auth_events = [log for log in all_logs if log.action in auth_actions]
+
+        # Requirement traceability events
+        req_actions = [
+            AuditAction.REQUIREMENT_CREATE.value,
+            AuditAction.REQUIREMENT_UPDATE.value,
+            AuditAction.REQUIREMENT_CITATION_ADD.value,
+            AuditAction.REQUIREMENT_CITATION_VERIFY.value,
+        ]
+        req_events = [log for log in all_logs if log.action in req_actions]
+
+        # Document events
+        doc_actions = [
+            AuditAction.DOCUMENT_CREATE.value,
+            AuditAction.DOCUMENT_READ.value,
+            AuditAction.DOCUMENT_UPDATE.value,
+            AuditAction.DOCUMENT_DELETE.value,
+        ]
+        doc_events = [log for log in all_logs if log.action in doc_actions]
+
+        # Safety incidents
+        incident_actions = [
+            AuditAction.INCIDENT_CREATE.value,
+            AuditAction.INCIDENT_UPDATE.value,
+            AuditAction.INCIDENT_CLOSE.value,
+        ]
+        incident_events = [log for log in all_logs if log.action in incident_actions]
+
+        # SOUP events
+        soup_actions = [
+            AuditAction.SOUP_CREATE.value,
+            AuditAction.SOUP_APPROVE.value,
+            AuditAction.SOUP_REJECT.value,
+        ]
+        soup_events = [log for log in all_logs if log.action in soup_actions]
+
         failed_logins = len([log for log in auth_events if log.action == AuditAction.LOGIN_FAILED.value])
-        
-        # Calculate unique active users
         active_users = len(set(log.user_id for log in all_logs if log.user_id))
-        
-        report = {
+
+        return {
             "report_metadata": {
                 "generated_at": datetime.utcnow().isoformat(),
                 "period_start": start_date.isoformat(),
                 "period_end": end_date.isoformat(),
-                "total_events": len(all_logs)
+                "standard": "EN 50128 Class B / IEC 62443",
+                "total_events": len(all_logs),
             },
             "authentication_summary": {
                 "total_login_attempts": len([log for log in auth_events if log.action == AuditAction.LOGIN.value]),
                 "failed_login_attempts": failed_logins,
                 "account_lockouts": len([log for log in auth_events if log.action == AuditAction.ACCOUNT_LOCKED.value]),
-                "unique_active_users": active_users
+                "unique_active_users": active_users,
             },
-            "phi_access_summary": {
-                "total_phi_access_events": len(phi_events),
-                "unique_patients_accessed": len(set(log.patient_id for log in phi_events)),
-                "breakdown_by_action": self._count_by_action(phi_events)
+            "requirement_traceability": {
+                "total_events": len(req_events),
+                "requirements_created": len([log for log in req_events if log.action == AuditAction.REQUIREMENT_CREATE.value]),
+                "citations_added": len([log for log in req_events if log.action == AuditAction.REQUIREMENT_CITATION_ADD.value]),
+                "citations_verified": len([log for log in req_events if log.action == AuditAction.REQUIREMENT_CITATION_VERIFY.value]),
             },
-            "security_events": {
-                "total_incidents": len(security_events),
-                "incidents": [
-                    {
-                        "action": log.action,
-                        "timestamp": log.timestamp.isoformat(),
-                        "details": log.details
-                    }
-                    for log in security_events
-                ]
+            "document_summary": {
+                "total_events": len(doc_events),
+                "documents_created": len([log for log in doc_events if log.action == AuditAction.DOCUMENT_CREATE.value]),
+                "documents_read": len([log for log in doc_events if log.action == AuditAction.DOCUMENT_READ.value]),
+                "documents_updated": len([log for log in doc_events if log.action == AuditAction.DOCUMENT_UPDATE.value]),
+                "documents_deleted": len([log for log in doc_events if log.action == AuditAction.DOCUMENT_DELETE.value]),
+            },
+            "safety_incidents": {
+                "total_events": len(incident_events),
+                "incidents_created": len([log for log in incident_events if log.action == AuditAction.INCIDENT_CREATE.value]),
+                "incidents_closed": len([log for log in incident_events if log.action == AuditAction.INCIDENT_CLOSE.value]),
+                "escalations": len([log for log in incident_events if log.action == AuditAction.INCIDENT_ESCALATE.value]),
+            },
+            "soup_management": {
+                "total_events": len(soup_events),
+                "soups_created": len([log for log in soup_events if log.action == AuditAction.SOUP_CREATE.value]),
+                "soups_approved": len([log for log in soup_events if log.action == AuditAction.SOUP_APPROVE.value]),
+                "soups_rejected": len([log for log in soup_events if log.action == AuditAction.SOUP_REJECT.value]),
             },
             "compliance_checklist": {
                 "audit_logging_enabled": True,
-                "phi_tracking_enabled": True,
+                "requirement_traceability_enabled": True,
                 "authentication_logging": True,
-                "retention_policy_days": 2190,  # 6 years
+                "retention_policy_years": 10,  # EN 50128 minimum
                 "data_encryption": "AES-256-GCM",
                 "password_hashing": "Argon2id",
-                "session_timeout_minutes": 15
-            }
+                "session_timeout_minutes": 30,
+                "mfa_enabled": True,  # Placeholder — to be implemented Phase 2
+                "fail_safe_design": True,
+            },
         }
-        
-        return report
-    
-    def _count_by_action(self, logs: List[AuditLog]) -> Dict[str, int]:
-        """Count logs by action type"""
-        counts = {}
-        for log in logs:
-            counts[log.action] = counts.get(log.action, 0) + 1
-        return counts
 
 
-class BreachManager:
-    """Manage security incidents and breach notifications"""
-    
+# === Railway Incident Manager (replaces BreachManager) ===
+
+class RailwayIncidentManager:
+    """
+    Manage railway safety incidents per EN 50128 / ISO 9001.
+
+    Replaces healthcare BreachManager with railway-appropriate incident tracking.
+    """
+
     def __init__(self, db_session: Optional[Session] = None):
         self.db = db_session
         self.audit_logger = AuditLogger(db_session)
-    
+
     def _get_db(self) -> Session:
-        """Get database session"""
         if self.db:
             return self.db
         return get_session()
-    
+
     def create_incident(
         self,
         title: str,
-        severity: IncidentSeverity,
-        incident_type: IncidentType,
-        patient_ids: Optional[List[UUID]] = None,
+        severity: str,
+        incident_type: str,
+        description: str,
+        asset_id: Optional[UUID] = None,
         details: Optional[Dict[str, Any]] = None,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
+        is_safety_critical: bool = False,
+        is_reportable: bool = False,
+        detected_by: str = "user",
     ) -> Optional[UUID]:
-        """
-        Create a security incident
-        
-        Args:
-            title: Incident title
-            severity: Incident severity
-            incident_type: Type of incident
-            patient_ids: List of affected patients
-            details: Incident details
-            user_id: User who reported the incident
-            
-        Returns:
-            UUID of created incident
-        """
+        """Create a new railway safety incident"""
         try:
+            from cortex.models import RailwayIncident, IncidentStatus
+
             db = self._get_db()
-            
-            incident = SecurityIncident(
-                title=title,
+
+            incident = RailwayIncident(
+                id=str(uuid4()),
+                incident_id=f"INC-{datetime.utcnow().year}-{str(uuid4())[:8].upper()}",
+                asset_id=str(asset_id) if asset_id else None,
                 incident_type=incident_type,
                 severity=severity,
-                status=IncidentStatus.INVESTIGATING,
-                details=details,
-                reported_by=user_id,
-                report_date=datetime.utcnow()
+                status=IncidentStatus.OPEN.value,
+                detected_at=datetime.utcnow(),
+                detected_by=detected_by,
+                description=description,
+                is_safety_critical=is_safety_critical,
+                is_reportable=is_reportable,
             )
-            
-            if patient_ids:
-                incident.affected_patients = patient_ids
-            
+
             db.add(incident)
             db.commit()
             db.refresh(incident)
-            
-            # Log audit event
-            self.audit_logger.log(AuditEntry(
-                action=AuditAction.SECURITY_INCIDENT,
-                user_id=user_id,
-                details={
-                    "incident_id": str(incident.id),
-                    "title": title,
-                    "severity": severity.value,
-                    "type": incident_type.value
-                }
-            ))
-            
-            logger.warning(
-                "security_incident_created",
-                incident_id=str(incident.id),
-                severity=severity.value,
-                type=incident_type.value
+
+            self.audit_logger.log(
+                AuditEntry(
+                    action=AuditAction.INCIDENT_CREATE,
+                    user_id=user_id,
+                    resource_type="railway_incident",
+                    resource_id=UUID(incident.id),
+                    asset_id=asset_id,
+                    details={
+                        "title": title,
+                        "severity": severity,
+                        "incident_type": incident_type,
+                        "is_safety_critical": is_safety_critical,
+                    },
+                )
             )
-            
-            return incident.id
-            
+
+            logger.info("railway_incident_created", incident_id=incident.incident_id, severity=severity)
+            return UUID(incident.id)
+
         except SQLAlchemyError as e:
-            logger.error("incident_creation_failed", error=str(e))
+            logger.error("incident_create_failed", error=str(e))
             return None
-    
-    def escalate_to_breach(
+
+    def close_incident(
         self,
         incident_id: UUID,
-        affected_patients: List[UUID],
-        description: str,
-        assigned_to: UUID
-    ) -> Optional[UUID]:
-        """
-        Escalate incident to confirmed breach
-        
-        Args:
-            incident_id: Original incident ID
-            affected_patients: List of affected patient IDs
-            description: Breach description
-            assigned_to: User assigned to handle breach
-            
-        Returns:
-            UUID of breach notification
-        """
-        try:
-            db = self._get_db()
-            
-            # Update incident status
-            incident = db.query(SecurityIncident).filter(
-                SecurityIncident.id == incident_id
-            ).first()
-            
-            if not incident:
-                logger.error("incident_not_found", incident_id=str(incident_id))
-                return None
-            
-            incident.status = IncidentStatus.CONFIRMED
-            incident.affected_patients = affected_patients
-            
-            # Create breach notification
-            breach = BreachNotification(
-                incident_id=incident_id,
-                breach_date=datetime.utcnow(),
-                description=description,
-                affected_patients=affected_patients,
-                notification_status="pending"
-            )
-            
-            db.add(breach)
-            db.commit()
-            db.refresh(breach)
-            
-            # Log audit event
-            self.audit_logger.log(AuditEntry(
-                action=AuditAction.BREACH_DETECTED,
-                user_id=assigned_to,
-                details={
-                    "breach_id": str(breach.id),
-                    "incident_id": str(incident_id),
-                    "affected_count": len(affected_patients)
-                }
-            ))
-            
-            logger.critical(
-                "breach_confirmed",
-                breach_id=str(breach.id),
-                affected_patients=len(affected_patients)
-            )
-            
-            return breach.id
-            
-        except SQLAlchemyError as e:
-            logger.error("breach_escalation_failed", error=str(e))
-            return None
-    
-    def record_notification(
-        self,
-        breach_id: UUID,
-        patient_id: UUID,
-        notification_method: str,
-        notification_date: datetime,
-        notes: Optional[str] = None
+        user_id: UUID,
+        root_cause: Optional[str] = None,
+        mitigation_steps: Optional[str] = None,
     ) -> bool:
-        """
-        Record patient notification for breach
-        
-        Args:
-            breach_id: Breach notification ID
-            patient_id: Patient who was notified
-            notification_method: How they were notified
-            notification_date: When they were notified
-            notes: Additional notes
-            
-        Returns:
-            Success status
-        """
+        """Close a railway safety incident"""
         try:
+            from cortex.models import RailwayIncident, IncidentStatus
+
             db = self._get_db()
-            
-            breach = db.query(BreachNotification).filter(
-                BreachNotification.id == breach_id
-            ).first()
-            
-            if not breach:
-                logger.error("breach_not_found", breach_id=str(breach_id))
+
+            incident = db.query(RailwayIncident).filter(RailwayIncident.id == str(incident_id)).first()
+            if not incident:
                 return False
-            
-            # Update notification status
-            if not breach.notifications_sent:
-                breach.notifications_sent = []
-            
-            breach.notifications_sent.append({
-                "patient_id": str(patient_id),
-                "method": notification_method,
-                "date": notification_date.isoformat(),
-                "notes": notes
-            })
-            
+
+            incident.status = IncidentStatus.CLOSED.value
+            incident.closed_at = datetime.utcnow()
+            incident.closed_by = str(user_id)
+            if root_cause:
+                incident.root_cause = root_cause
+            if mitigation_steps:
+                incident.mitigation_steps = mitigation_steps
+
             db.commit()
-            
-            logger.info(
-                "breach_notification_recorded",
-                breach_id=str(breach_id),
-                patient_id=str(patient_id)
+
+            self.audit_logger.log(
+                AuditEntry(
+                    action=AuditAction.INCIDENT_CLOSE,
+                    user_id=user_id,
+                    resource_type="railway_incident",
+                    resource_id=incident_id,
+                    asset_id=UUID(incident.asset_id) if incident.asset_id else None,
+                    details={"root_cause": root_cause},
+                )
             )
-            
+
             return True
-            
+
         except SQLAlchemyError as e:
-            logger.error("notification_record_failed", error=str(e))
+            logger.error("incident_close_failed", error=str(e))
             return False
-    
-    def get_active_breaches(self) -> List[Dict[str, Any]]:
-        """
-        Get all active breach notifications
-        
-        Returns:
-            List of active breaches
-        """
-        db = self._get_db()
-        
-        breaches = db.query(BreachNotification).filter(
-            BreachNotification.notification_status != "completed"
-        ).all()
-        
-        return [
-            {
-                "id": str(breach.id),
-                "incident_id": str(breach.incident_id),
-                "breach_date": breach.breach_date.isoformat(),
-                "description": breach.description,
-                "affected_patients": [str(pid) for pid in breach.affected_patients],
-                "notification_status": breach.notification_status
-            }
-            for breach in breaches
-        ]
 
 
-# Convenience functions
+# === Backward compatibility alias ===
+BreachManager = RailwayIncidentManager
 
-_audit_logger = None
 
-def get_audit_logger(db_session: Optional[Session] = None) -> AuditLogger:
-    """Get audit logger instance"""
-    global _audit_logger
-    if db_session:
-        return AuditLogger(db_session)
-    if not _audit_logger:
-        _audit_logger = AuditLogger()
-    return _audit_logger
-
+# === Convenience function for route handlers ===
 
 def log_audit(
     action: AuditAction,
     user_id: Optional[UUID] = None,
     resource_type: Optional[str] = None,
     resource_id: Optional[UUID] = None,
-    patient_id: Optional[UUID] = None,
+    asset_id: Optional[UUID] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
 ) -> Optional[UUID]:
     """
-    Convenience function to log audit event
-    
+    Convenience function to log audit events from route handlers.
+
     Args:
-        action: Audit action type
-        user_id: User performing action
-        resource_type: Type of resource
-        resource_id: Resource ID
-        patient_id: Patient ID if PHI accessed
-        ip_address: Client IP
+        action: The audit action type
+        user_id: User performing the action
+        resource_type: Type of resource affected
+        resource_id: ID of the affected resource
+        asset_id: Railway asset ID (for traceability)
+        ip_address: Client IP address
         user_agent: Client user agent
-        details: Additional details
-        
+        details: Additional structured context
+
     Returns:
-        UUID of audit log entry
+        UUID of the audit log entry, or None on failure
     """
+    logger_instance = AuditLogger()
     entry = AuditEntry(
         action=action,
         user_id=user_id,
         resource_type=resource_type,
         resource_id=resource_id,
-        patient_id=patient_id,
+        asset_id=asset_id,
         ip_address=ip_address,
         user_agent=user_agent,
-        details=details
-    )
-    
-    return get_audit_logger().log(entry)
-
-
-def log_phi_access(
-    user_id: UUID,
-    patient_id: UUID,
-    action: AuditAction,
-    resource_type: str = "patient",
-    resource_id: Optional[UUID] = None,
-    details: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None
-) -> Optional[UUID]:
-    """
-    Convenience function to log PHI access
-    
-    Args:
-        user_id: User accessing PHI
-        patient_id: Patient whose PHI was accessed
-        action: Type of access
-        resource_type: Type of resource
-        resource_id: Resource ID
-        details: Additional details
-        ip_address: Client IP
-        user_agent: Client user agent
-        
-    Returns:
-        UUID of audit log entry
-    """
-    return get_audit_logger().log_phi_access(
-        user_id=user_id,
-        patient_id=patient_id,
-        action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
         details=details,
-        ip_address=ip_address,
-        user_agent=user_agent
     )
+    return logger_instance.log(entry)

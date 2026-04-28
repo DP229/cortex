@@ -1,13 +1,13 @@
 """
 Cortex Security - Encryption Utilities
 
-HIPAA-compliant encryption for data at rest:
+EN 50128 / IEC 62443 compliant encryption for railway safety data at rest:
 - AES-256-GCM for symmetric encryption
 - Argon2id for password hashing
 - Secure key derivation
 - File encryption/decryption
 
-All encryption uses industry-standard algorithms approved for PHI.
+All encryption uses industry-standard algorithms approved for safety-critical systems.
 """
 
 import os
@@ -86,25 +86,25 @@ def needs_rehash(hashed_password: str) -> bool:
 
 class EncryptionManager:
     """
-    AES-256-GCM encryption manager for PHI
-    
+    AES-256-GCM encryption manager for sensitive data (EN 50128 Class B)
+
     Uses AES-256 in GCM (Galois/Counter Mode) for:
     - Confidentiality (encryption)
     - Integrity (authentication)
     - No separate padding needed
-    
-    HIPAA Security Rule compliant:
-    - AES-256 is approved for encryption
+
+    EN 50128 / IEC 62443 compliant:
+    - AES-256 is approved for safety-critical systems
     - GCM mode provides authenticated encryption
     - No additional integrity check needed
-    
+
     Usage:
         # Initialize with master key
         enc = EncryptionManager(master_key_bytes)
-        
+
         # Encrypt data
         encrypted = enc.encrypt("sensitive data")
-        
+
         # Decrypt data
         plaintext = enc.decrypt(encrypted)
     """
@@ -232,7 +232,7 @@ class EncryptionManager:
             Path to encrypted file
         
         Example:
-            enc_path = enc.encrypt_file("patient_data.txt")
+            enc_path = enc.encrypt_file("railway_asset_spec.pdf")
         """
         if output_path is None:
             output_path = filepath + '.enc'
@@ -426,51 +426,55 @@ class KeyManager:
         return new_key
 
 
-# === PHI Masking ===
+# === Sensitive Data Masking (EN 50128) ===
 
-def mask_phi(phi_value: str, phi_type: str) -> str:
+def mask_sensitive_data(sensitive_value: str, data_type: str) -> str:
     """
-    Mask PHI for partially redacted display
-    
+    Mask sensitive data for partially redacted display per EN 50128.
+
     Args:
-        phi_value: PHI value to mask
-        phi_type: Type of PHI (ssn, phone, email, etc.)
-    
+        sensitive_value: Sensitive value to mask
+        data_type: Type of data (ssn, phone, email, mrn, name, etc.)
+
     Returns:
         Partially masked value
-    
+
     Examples:
-        mask_phi("123-45-6789", "ssn") -> "***-**-6789"
-        mask_phi("555-123-4567", "phone") -> "***-***-4567"
-        mask_phi("john.doe@email.com", "email") -> "jo***@email.com"
+        mask_sensitive_data("123-45-6789", "ssn") -> "***-**-6789"
+        mask_sensitive_data("555-123-4567", "phone") -> "***-***-4567"
+        mask_sensitive_data("john.doe@email.com", "email") -> "jo***@email.com"
     """
-    if phi_type == "ssn":
+    if data_type == "ssn":
         # SSN: show last 4 digits
-        return "***-**-" + phi_value[-4:]
-    
-    elif phi_type == "phone":
+        return "***-**-" + sensitive_value[-4:]
+
+    elif data_type == "phone":
         # Phone: show last 4 digits
-        return "***-***-" + phi_value[-4:]
-    
-    elif phi_type == "email":
+        return "***-***-" + sensitive_value[-4:]
+
+    elif data_type == "email":
         # Email: show first 2 chars and domain
-        parts = phi_value.split("@")
+        parts = sensitive_value.split("@")
         if len(parts) == 2:
             username = parts[0]
             domain = parts[1]
             masked = username[:2] + "***@" + domain
             return masked
-    
-    elif phi_type == "mrn":
+
+    elif data_type == "mrn":
         # MRN: show last 3 digits
-        return "***" + phi_value[-3:]
-    
-    elif phi_type == "name":
+        return "***" + sensitive_value[-3:]
+
+    elif data_type == "name":
         # Name: show first letter
-        return phi_value[0] + "***"
-    
+        return sensitive_value[0] + "***"
+
     # Default: full mask
     return "[REDACTED]"
+
+
+# Backward compatibility alias
+mask_phi = mask_sensitive_data
 
 
 # === Utility Functions ===
@@ -513,5 +517,6 @@ __all__ = [
     "generate_encryption_key",
     "load_encryption_key",
     "mask_phi",
+    "mask_sensitive_data",
     "secure_delete",
 ]

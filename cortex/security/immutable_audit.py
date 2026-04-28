@@ -1665,8 +1665,8 @@ class SecurityEventType(str, Enum):
     SYSTEM_START = "system.start"
     SYSTEM_STOP = "system.stop"
     SYSTEM_ERROR = "system.error"
-    PHI_ACCESS = "phi.access"
-    PHI_EXPORT = "phi.export"
+    RAILWAY_ASSET_ACCESS = "railway.asset_access"
+    RAILWAY_DOCUMENT_EXPORT = "railway.document_export"
     DATA_BREACH_SUSPECTED = "data.breach_suspected"
 
 

@@ -1,13 +1,11 @@
 """
-Cortex Document API Endpoints
+Cortex Document API Endpoints - Railway Safety Compliance
 
-FastAPI endpoints for document management:
-- Upload documents
-- Download documents
-- Update documents (versioning)
-- Delete documents
-- Query documents
-- Version history
+EN 50128 Class B compliant document management:
+- Upload/download/version railway compliance documents
+- Asset traceability
+- Retention policy enforcement
+- SHA-256 integrity verification
 """
 
 from datetime import datetime
@@ -15,18 +13,15 @@ from typing import Optional, List
 from uuid import UUID
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
 import structlog
 
 from cortex.security.auth import get_current_active_user
 from cortex.security.rbac import Permission, get_user_permissions
 from cortex.models import User, UserRole, DocumentType, DocumentStatus
-from cortex.documents import (
-    DocumentManager, DocumentType as DocType, DocumentStatus as DocStatus,
-    get_document_manager
-)
+from cortex.documents import DocumentManager
 from cortex.audit import log_audit, AuditAction
 
 logger = structlog.get_logger()
@@ -44,24 +39,12 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def map_document_status(status: str) -> DocumentStatus:
-    """Map document status string to enum"""
-    status_map = {
-        "active": DocumentStatus.ACTIVE,
-        "archived": DocumentStatus.ARCHIVED,
-        "deleted": DocumentStatus.DELETED,
-        "pending_review": DocumentStatus.PENDING_REVIEW,
-        "retention_hold": DocumentStatus.RETENTION_HOLD,
-    }
-    return status_map.get(status.lower(), DocumentStatus.ACTIVE)
-
-
 # === Pydantic Models ===
 
 class DocumentUploadResponse(BaseModel):
     """Document upload response"""
     id: str
-    patient_id: str
+    asset_id: Optional[str] = None
     document_type: str
     title: str
     filename: str
@@ -69,15 +52,12 @@ class DocumentUploadResponse(BaseModel):
     version: int
     status: str
     created_at: str
-    
-    class Config:
-        from_attributes = True
 
 
 class DocumentMetadataResponse(BaseModel):
     """Document metadata response"""
     id: str
-    patient_id: str
+    asset_id: Optional[str] = None
     document_type: str
     title: str
     description: Optional[str] = None
@@ -92,15 +72,9 @@ class DocumentMetadataResponse(BaseModel):
     updated_at: Optional[str] = None
     retention_until: Optional[str] = None
     tags: Optional[List[str]] = None
-    consent_id: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
-
-
-class DocumentUpdateRequest(BaseModel):
-    """Document update request"""
-    notes: Optional[str] = None
 
 
 class DocumentListResponse(BaseModel):
@@ -121,101 +95,95 @@ class DocumentVersionResponse(BaseModel):
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    patient_id: str = Form(...),
+    asset_id: Optional[str] = Form(None),
     document_type: str = Form(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
-    consent_id: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    Upload a new document
-    
-    **Requires:** `patient_write` permission
-    
-    **HIPAA:** Documents encrypted at rest, consent verified
+    Upload a new railway compliance document.
+
+    **Requires:** `document_write` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_WRITE not in user_permissions:
+    if Permission.DOCUMENT_WRITE not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_write' required"
+            detail="Permission 'document_write' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
-        # Convert types
-        patient_uuid = UUID(patient_id)
-        doc_type = DocType(document_type.lower())
-        consent_uuid = UUID(consent_id) if consent_id else None
-        
-        # Parse tags
-        tag_list = tags.split(",") if tags else None
-        tag_list = [t.strip() for t in tag_list] if tag_list else None
-        
-        # Upload document
+        document_manager = DocumentManager()
+
+        doc_type = DocumentType(document_type.lower())
+        asset_uuid = UUID(asset_id) if asset_id else None
+        tag_list = [t.strip() for t in tags.split(",")] if tags else None
+
         document_id = document_manager.upload_document(
-            patient_id=patient_uuid,
             file_data=file.file,
             filename=file.filename,
             document_type=doc_type,
             title=title,
             description=description,
+            asset_id=asset_uuid,
             uploaded_by=current_user.id,
-            requires_consent=True,
-            consent_id=consent_uuid,
-            tags=tag_list
+            tags=tag_list,
         )
-        
+
         if not document_id:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to upload document"
+                detail="Failed to upload document",
             )
-        
+
         # Get metadata
-        metadata = document_manager.get_document_metadata(document_id)
-        
+        metadata = document_manager.get_document(document_id)
+        if not metadata:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Document uploaded but failed to retrieve metadata",
+            )
+
         # Audit log
         log_audit(
             action=AuditAction.DOCUMENT_CREATE,
             user_id=current_user.id,
-            patient_id=patient_uuid,
+            asset_id=asset_uuid,
             resource_type="document",
             resource_id=document_id,
             ip_address=get_client_ip(request),
             details={
                 "filename": file.filename,
                 "document_type": document_type,
-                "file_size": metadata.get("file_size", 0) if metadata else 0
+                "file_size": metadata.file_size,
+                "checksum": metadata.checksum,
             }
         )
-        
+
         return DocumentUploadResponse(
             id=str(document_id),
-            patient_id=patient_id,
+            asset_id=asset_id,
             document_type=document_type,
             title=title,
             filename=file.filename,
-            file_size=metadata.get("file_size", 0) if metadata else 0,
+            file_size=metadata.file_size,
             version=1,
             status="active",
-            created_at=datetime.utcnow().isoformat()
+            created_at=metadata.created_at.isoformat(),
         )
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except Exception as e:
         logger.error("upload_document_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload document"
+            detail="Failed to upload document",
         )
 
 
@@ -223,49 +191,63 @@ async def upload_document(
 async def get_document_metadata(
     document_id: str,
     request: Request,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    Get document metadata
-    
-    **Requires:** `patient_read` permission
+    Get document metadata.
+
+    **Requires:** `document_read` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_READ not in user_permissions:
+    if Permission.DOCUMENT_READ not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_read' required"
+            detail="Permission 'document_read' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
+        document_manager = DocumentManager()
         document_uuid = UUID(document_id)
-        metadata = document_manager.get_document_metadata(document_uuid)
-        
-        if not metadata:
+        document = document_manager.get_document(document_uuid)
+
+        if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
+                detail="Document not found",
             )
-        
+
         # Audit log
         log_audit(
             action=AuditAction.DOCUMENT_READ,
             user_id=current_user.id,
-            patient_id=UUID(metadata["patient_id"]),
             resource_type="document",
             resource_id=document_uuid,
-            ip_address=get_client_ip(request)
+            ip_address=get_client_ip(request),
         )
-        
-        return DocumentMetadataResponse(**metadata)
-        
+
+        return DocumentMetadataResponse(
+            id=str(document.id),
+            asset_id=str(document.asset_id) if document.asset_id else None,
+            document_type=document.document_type,
+            title=document.title,
+            description=document.description,
+            filename=document.original_filename,
+            file_type=document.file_type,
+            file_size=document.file_size,
+            checksum=document.checksum,
+            current_version=document.current_version,
+            status=document.status,
+            uploaded_by=str(document.uploaded_by) if document.uploaded_by else None,
+            created_at=document.created_at.isoformat(),
+            updated_at=document.updated_at.isoformat() if document.updated_at else None,
+            retention_until=document.retention_until.isoformat() if document.retention_until else None,
+            tags=document.tags,
+        )
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except HTTPException:
         raise
@@ -273,7 +255,7 @@ async def get_document_metadata(
         logger.error("get_document_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve document"
+            detail="Failed to retrieve document",
         )
 
 
@@ -282,57 +264,66 @@ async def download_document(
     document_id: str,
     request: Request,
     version: Optional[int] = None,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    Download document content
-    
-    **Requires:** `patient_read` permission
-    
-    **HIPAA:** All downloads logged in audit trail
+    Download document content with integrity verification.
+
+    **Requires:** `document_read` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_READ not in user_permissions:
+    if Permission.DOCUMENT_READ not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_read' required"
+            detail="Permission 'document_read' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
+        document_manager = DocumentManager()
         document_uuid = UUID(document_id)
-        
-        # Download document
+
         result = document_manager.download_document(
             document_id=document_uuid,
             user=current_user.id,
-            version=version
+            version=version,
         )
-        
+
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
+                detail="Document not found or integrity check failed",
             )
-        
+
         content, filename, mime_type = result
-        
-        # Return as streaming response
+
+        # Audit log
+        log_audit(
+            action=AuditAction.DOCUMENT_READ,
+            user_id=current_user.id,
+            resource_type="document",
+            resource_id=document_uuid,
+            ip_address=get_client_ip(request),
+            details={
+                "filename": filename,
+                "version": version,
+                "integrity_verified": True,
+            }
+        )
+
         return StreamingResponse(
             BytesIO(content),
             media_type=mime_type,
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(len(content))
+                "Content-Length": str(len(content)),
+                "X-Content-Checksum": document_manager._generate_checksum(content),
             }
         )
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except HTTPException:
         raise
@@ -340,78 +331,7 @@ async def download_document(
         logger.error("download_document_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to download document"
-        )
-
-
-@router.get("/patient/{patient_id}", response_model=DocumentListResponse)
-async def get_patient_documents(
-    patient_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_active_user),
-    document_type: Optional[str] = None,
-    status: Optional[str] = None,
-    limit: int = 100
-):
-    """
-    Get all documents for a patient
-    
-    **Requires:** `phi_access` permission
-    
-    **HIPAA:** Logs PHI access
-    """
-    # Check permission
-    user_permissions = get_user_permissions(current_user)
-    if Permission.PHI_ACCESS not in user_permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'phi_access' required"
-        )
-    
-    try:
-        document_manager = get_document_manager()
-        
-        patient_uuid = UUID(patient_id)
-        
-        # Convert filters
-        doc_type = DocType(document_type.lower()) if document_type else None
-        doc_status = map_document_status(status) if status else None
-        
-        documents = document_manager.get_patient_documents(
-            patient_id=patient_uuid,
-            document_type=doc_type,
-            status=doc_status,
-            limit=limit
-        )
-        
-        # Audit log
-        log_audit(
-            action=AuditAction.PHI_ACCESS,
-            user_id=current_user.id,
-            patient_id=patient_uuid,
-            resource_type="document",
-            ip_address=get_client_ip(request),
-            details={
-                "action": "list_documents",
-                "count": len(documents)
-            }
-        )
-        
-        return DocumentListResponse(
-            documents=documents,
-            total=len(documents)
-        )
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error("get_patient_documents_error", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve documents"
+            detail="Failed to download document",
         )
 
 
@@ -421,74 +341,67 @@ async def update_document(
     request: Request,
     file: UploadFile = File(...),
     notes: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    Update document (create new version)
-    
-    **Requires:** `patient_write` permission
+    Update document (creates new version).
+
+    **Requires:** `document_write` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_WRITE not in user_permissions:
+    if Permission.DOCUMENT_WRITE not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_write' required"
+            detail="Permission 'document_write' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
+        document_manager = DocumentManager()
         document_uuid = UUID(document_id)
-        
-        # Update document
+
         new_version = document_manager.update_document(
             document_id=document_uuid,
             file_data=file.file,
             filename=file.filename,
             updated_by=current_user.id,
-            notes=notes
+            notes=notes,
         )
-        
+
         if not new_version:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update document"
+                detail="Failed to update document",
             )
-        
-        # Get metadata for audit
-        metadata = document_manager.get_document_metadata(document_uuid)
-        
+
         # Audit log
         log_audit(
             action=AuditAction.DOCUMENT_UPDATE,
             user_id=current_user.id,
-            patient_id=UUID(metadata["patient_id"]) if metadata else None,
             resource_type="document",
             resource_id=document_uuid,
             ip_address=get_client_ip(request),
             details={
                 "version": new_version,
-                "notes": notes
+                "filename": file.filename,
             }
         )
-        
+
         return {
             "message": "Document updated successfully",
             "document_id": document_id,
-            "version": new_version
+            "version": new_version,
         }
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except Exception as e:
         logger.error("update_document_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update document"
+            detail="Failed to update document",
         )
 
 
@@ -497,185 +410,123 @@ async def delete_document(
     document_id: str,
     request: Request,
     reason: Optional[str] = None,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    Soft delete a document
-    
-    **Requires:** `patient_delete` permission
+    Soft-delete a document (retention hold — EN 50128).
+
+    Documents are not physically deleted; they are marked as deleted
+    and placed under retention hold per the EN 50128 retention policy.
+
+    **Requires:** `document_delete` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_DELETE not in user_permissions:
+    if Permission.DOCUMENT_DELETE not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_delete' required"
+            detail="Permission 'document_delete' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
+        document_manager = DocumentManager()
         document_uuid = UUID(document_id)
-        
-        # Get metadata before deletion
-        metadata = document_manager.get_document_metadata(document_uuid)
-        
-        if not metadata:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
-            )
-        
-        # Delete document
+
         success = document_manager.delete_document(
             document_id=document_uuid,
             deleted_by=current_user.id,
-            reason=reason
+            reason=reason,
         )
-        
+
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete document"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
             )
-        
+
         # Audit log
         log_audit(
             action=AuditAction.DOCUMENT_DELETE,
             user_id=current_user.id,
-            patient_id=UUID(metadata["patient_id"]),
             resource_type="document",
             resource_id=document_uuid,
             ip_address=get_client_ip(request),
-            details={
-                "reason": reason
-            }
+            details={"reason": reason},
         )
-        
-        return {
-            "message": "Document deleted successfully",
-            "document_id": document_id
-        }
-        
+
+        return {"message": "Document deleted successfully", "document_id": document_id}
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error("delete_document_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete document"
+            detail="Failed to delete document",
         )
 
 
-@router.get("/{document_id}/versions", response_model=DocumentVersionResponse)
-async def get_document_versions(
-    document_id: str,
+@router.get("/", response_model=DocumentListResponse)
+async def list_documents(
     request: Request,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    asset_id: Optional[str] = None,
+    document_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = Query(default=100, le=500),
+    offset: int = Query(default=0, ge=0),
 ):
     """
-    Get version history for a document
-    
-    **Requires:** `patient_read` permission
+    List documents with filtering and pagination.
+
+    **Requires:** `document_read` permission
     """
-    # Check permission
     user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_READ not in user_permissions:
+    if Permission.DOCUMENT_READ not in user_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_read' required"
+            detail="Permission 'document_read' required",
         )
-    
+
     try:
-        document_manager = get_document_manager()
-        
-        document_uuid = UUID(document_id)
-        versions = document_manager.get_document_versions(document_uuid)
-        
-        if not versions:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
-            )
-        
-        return DocumentVersionResponse(
-            versions=versions,
-            total=len(versions)
+        document_manager = DocumentManager()
+
+        asset_uuid = UUID(asset_id) if asset_id else None
+        doc_type = DocumentType(document_type.lower()) if document_type else None
+        doc_status = DocumentStatus(status.lower()) if status else None
+
+        documents, total = document_manager.list_documents(
+            asset_id=asset_uuid,
+            document_type=doc_type,
+            status=doc_status,
+            limit=limit,
+            offset=offset,
         )
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+
+        return DocumentListResponse(
+            documents=[
+                {
+                    "id": str(doc.id),
+                    "asset_id": str(doc.asset_id) if doc.asset_id else None,
+                    "document_type": doc.document_type,
+                    "title": doc.title,
+                    "filename": doc.original_filename,
+                    "file_size": doc.file_size,
+                    "current_version": doc.current_version,
+                    "status": doc.status,
+                    "created_at": doc.created_at.isoformat(),
+                    "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+                }
+                for doc in documents
+            ],
+            total=total,
         )
+
     except Exception as e:
-        logger.error("get_versions_error", error=str(e))
+        logger.error("list_documents_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve versions"
+            detail="Failed to list documents",
         )
-
-
-@router.get("/types", response_model=List[dict])
-async def list_document_types(
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    List available document types
-    
-    **Requires:** `patient_read` permission
-    """
-    # Check permission
-    user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_READ not in user_permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_read' required"
-        )
-    
-    types = [
-        {"type": "medical_record", "description": "Medical records", "retention_days": 2555},
-        {"type": "lab_result", "description": "Laboratory results", "retention_days": 2555},
-        {"type": "imaging", "description": "Medical imaging (DICOM)", "retention_days": 2555},
-        {"type": "consent_form", "description": "Patient consent forms", "retention_days": 2190},
-        {"type": "insurance", "description": "Insurance documents", "retention_days": 2555},
-        {"type": "referral", "description": "Referral documents", "retention_days": 2555},
-        {"type": "clinical_note", "description": "Clinical notes", "retention_days": 2555},
-        {"type": "discharge_summary", "description": "Discharge summaries", "retention_days": 2555},
-        {"type": "other", "description": "Other documents", "retention_days": 1825},
-    ]
-    
-    return types
-
-
-@router.get("/statuses", response_model=List[dict])
-async def list_document_statuses(
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    List available document statuses
-    
-    **Requires:** `patient_read` permission
-    """
-    # Check permission
-    user_permissions = get_user_permissions(current_user)
-    if Permission.PATIENT_READ not in user_permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission 'patient_read' required"
-        )
-    
-    statuses = [
-        {"status": "active", "description": "Active document"},
-        {"status": "archived", "description": "Archived document"},
-        {"status": "deleted", "description": "Deleted document"},
-        {"status": "pending_review", "description": "Pending review"},
-        {"status": "retention_hold", "description": "On retention hold"},
-    ]
-    
-    return statuses
