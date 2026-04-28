@@ -51,6 +51,7 @@ class AuditAction(str, Enum):
     REQUIREMENT_READ = "requirement_read"
     REQUIREMENT_UPDATE = "requirement_update"
     REQUIREMENT_DELETE = "requirement_delete"
+    REQUIREMENT_APPROVE = "requirement_approve"
     REQUIREMENT_CITATION_ADD = "requirement_citation_add"
     REQUIREMENT_CITATION_VERIFY = "requirement_citation_verify"
 
@@ -61,6 +62,8 @@ class AuditAction(str, Enum):
     SOUP_UPDATE = "soup_update"
 
     # Verification Records
+    TEST_RECORD_CREATE = "test_record_create"
+    TEST_RECORD_UPDATE = "test_record_update"
     TEST_EXECUTE = "test_execute"
     TEST_PASS = "test_pass"
     TEST_FAIL = "test_fail"

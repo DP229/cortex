@@ -26,6 +26,10 @@ from cortex import __version__
 from cortex.auth_routes import router as auth_router
 from cortex.document_routes import router as document_router
 from cortex.audit_routes import router as audit_router
+from cortex.asset_routes import router as asset_router
+from cortex.requirements_routes import router as requirements_router
+from cortex.soup_routes import router as soup_router
+from cortex.test_routes import router as test_router
 
 logger = structlog.get_logger()
 
@@ -114,6 +118,10 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 app.include_router(auth_router)
 app.include_router(document_router)
 app.include_router(audit_router)
+app.include_router(asset_router)
+app.include_router(requirements_router)
+app.include_router(soup_router)
+app.include_router(test_router)
 
 
 # === Root Endpoint ===
