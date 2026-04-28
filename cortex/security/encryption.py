@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-logger = None  # Will be set by logging
+logger = __import__("structlog").get_logger()
 
 # === Password Hashing ===
 
@@ -362,24 +362,23 @@ class KeyManager:
         if env_key:
             try:
                 return load_encryption_key(env_key)
-            except Exception as e:
-                logger.warning(f"Failed to load ENCRYPTION_KEY from environment: {e}")
-        
+            except Exception:
+                pass  # Bad env key format — fall through to file
+
         # Try key file
         if os.path.exists(self.key_file):
             try:
                 with open(self.key_file, 'rb') as f:
                     return f.read()
-            except Exception as e:
-                logger.warning(f"Failed to load key from file: {e}")
-        
-        # Generate new key
-        logger.info("Generating new encryption key")
+            except Exception:
+                pass  # Cannot read key file — fall through to generate
+
+        # Generate new key (first run)
         key = secrets.token_bytes(32)
-        
+
         # Save to file
         self._save_key(key)
-        
+
         return key
     
     def _save_key(self, key: bytes):
@@ -516,7 +515,29 @@ __all__ = [
     "KeyManager",
     "generate_encryption_key",
     "load_encryption_key",
+    "get_key_manager",
     "mask_phi",
     "mask_sensitive_data",
     "secure_delete",
 ]
+
+
+# === Singleton Key Manager ===
+
+_key_manager: Optional[KeyManager] = None
+
+
+def get_key_manager() -> KeyManager:
+    """
+    Get or create the global KeyManager singleton.
+
+    This is the ONLY way to obtain the encryption key.
+    Calling KeyManager() directly bypasses key persistence.
+
+    Returns:
+        KeyManager instance backed by ~/.cortex/keys/encryption.key
+    """
+    global _key_manager
+    if _key_manager is None:
+        _key_manager = KeyManager()
+    return _key_manager

@@ -22,7 +22,11 @@ import structlog
 
 from cortex.database import get_database_manager
 from cortex.models import User, Session, AuditLog, UserRole
-from cortex.security.encryption import hash_password, verify_password
+from cortex.security.encryption import (
+    hash_password,
+    verify_password,
+    get_key_manager,
+)
 
 logger = structlog.get_logger()
 
@@ -79,14 +83,14 @@ class AuthManager:
         Initialize authentication manager.
 
         Args:
-            jwt_secret: Secret key for JWT signing (from env or generate)
+            jwt_secret: Secret key for JWT signing (from env or ~/.cortex/keys/jwt.key)
             jwt_algorithm: JWT algorithm (default: HS256)
             jwt_expiration_minutes: Access token expiry (default: 15 min)
             jwt_refresh_expiration_days: Refresh token expiry (default: 7 days)
             max_login_attempts: Max failed attempts before lockout (default: 5)
             lockout_minutes: Lockout duration in minutes (default: 15)
         """
-        self.jwt_secret = jwt_secret or os.getenv("JWT_SECRET", secrets.token_urlsafe(32))
+        self.jwt_secret = jwt_secret or self._load_jwt_secret()
         self.jwt_algorithm = jwt_algorithm
         self.jwt_expiration_minutes = jwt_expiration_minutes
         self.jwt_refresh_expiration_days = jwt_refresh_expiration_days
@@ -95,7 +99,40 @@ class AuthManager:
 
         # Validate secret
         if not self.jwt_secret or len(self.jwt_secret) < 32:
-            logger.warning("JWT_SECRET is too short or missing - using generated secret (not recommended for production)")
+            import structlog
+            logger2 = structlog.get_logger()
+            logger2.warning("JWT_SECRET is too short or missing - using generated secret (not recommended for production)")
+
+    def _load_jwt_secret(self) -> str:
+        """Load JWT secret from env or persist to ~/.cortex/keys/jwt.key"""
+        # Env var takes priority (for containers/CI)
+        env_secret = os.getenv("JWT_SECRET")
+        if env_secret and len(env_secret) >= 32:
+            return env_secret
+
+        # Try file-based secret
+        jwt_key_file = os.path.expanduser("~/.cortex/keys/jwt.key")
+        if os.path.exists(jwt_key_file):
+            try:
+                with open(jwt_key_file, "r") as f:
+                    secret = f.read().strip()
+                if len(secret) >= 32:
+                    return secret
+            except Exception:
+                pass
+
+        # Generate and persist new secret
+        new_secret = secrets.token_urlsafe(48)
+        try:
+            key_dir = os.path.dirname(jwt_key_file)
+            os.makedirs(key_dir, mode=0o700, exist_ok=True)
+            with open(jwt_key_file, "w") as f:
+                f.write(new_secret)
+            os.chmod(jwt_key_file, 0o600)
+        except Exception:
+            pass
+
+        return new_secret
 
     def register(
         self,
@@ -140,9 +177,9 @@ class AuthManager:
             # Hash password
             password_hash = hash_password(password)
 
-            # Encrypt full name
-            encryption_key = os.getenv("ENCRYPTION_KEY")
-            encryption = EncryptionManager(encryption_key.encode() if encryption_key else None)
+            # Encrypt full name (key NEVER logged — EN 50128 Class B requirement)
+            key_manager = get_key_manager()
+            encryption = EncryptionManager(key_manager.get_encryption_key())
             encrypted_name = encryption.encrypt(full_name)
 
             # Create user

@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import structlog
 
-from cortex.security.auth import get_current_active_user
+from cortex.auth_routes import get_current_active_user_from_request
 from cortex.security.rbac import Permission, get_user_permissions
 from cortex.models import User, UserRole, DocumentType, DocumentStatus
 from cortex.documents import DocumentManager
@@ -100,7 +100,7 @@ async def upload_document(
     title: str = Form(...),
     description: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Upload a new railway compliance document.
@@ -191,7 +191,7 @@ async def upload_document(
 async def get_document_metadata(
     document_id: str,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Get document metadata.
@@ -264,7 +264,7 @@ async def download_document(
     document_id: str,
     request: Request,
     version: Optional[int] = None,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Download document content with integrity verification.
@@ -341,7 +341,7 @@ async def update_document(
     request: Request,
     file: UploadFile = File(...),
     notes: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Update document (creates new version).
@@ -410,7 +410,7 @@ async def delete_document(
     document_id: str,
     request: Request,
     reason: Optional[str] = None,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Soft-delete a document (retention hold — EN 50128).
@@ -471,7 +471,7 @@ async def delete_document(
 @router.get("/", response_model=DocumentListResponse)
 async def list_documents(
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     asset_id: Optional[str] = None,
     document_type: Optional[str] = None,
     status: Optional[str] = None,

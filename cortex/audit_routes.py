@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from pydantic import BaseModel
 import structlog
 
-from cortex.security.auth import get_current_active_user
+from cortex.auth_routes import get_current_active_user_from_request
 from cortex.security.rbac import Permission, ROLE_PERMISSIONS
 from cortex.models import User, UserRole
 from cortex.audit import (
@@ -84,7 +84,7 @@ def get_user_permissions(user: User) -> List[Permission]:
 @router.get("/logs", response_model=List[AuditLogResponse])
 async def get_audit_logs(
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     user_id: Optional[str] = None,
     action: Optional[str] = None,
     asset_id: Optional[str] = None,
@@ -189,7 +189,7 @@ async def get_audit_logs(
 async def get_user_audit_history(
     user_id: str,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     limit: int = Query(default=100, le=500),
@@ -232,7 +232,7 @@ async def get_user_audit_history(
 async def get_asset_audit_history(
     asset_id: str,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     limit: int = Query(default=100, le=500),
@@ -275,7 +275,7 @@ async def get_asset_audit_history(
 async def get_requirement_audit_history(
     requirement_id: str,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     limit: int = Query(default=100, le=500),
@@ -319,7 +319,7 @@ async def get_requirement_audit_history(
 @router.get("/reports/compliance", response_model=dict)
 async def get_compliance_report(
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ):
@@ -367,7 +367,7 @@ async def get_compliance_report(
 async def create_incident(
     incident_req: IncidentCreateRequest,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Create a railway safety incident report.
@@ -429,7 +429,7 @@ async def close_incident(
     incident_id: str,
     close_req: IncidentCloseRequest,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
     Close a railway safety incident with root cause analysis.

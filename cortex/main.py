@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Healthcare Compliance Agent - Main Entry Point
+Cortex Railway Safety Platform - Main Entry Point
 
-Start the Healthcare Compliance Agent API server.
+Start the Cortex Railway Safety Compliance API server.
 
 Usage:
     python -m cortex.main
@@ -66,30 +66,31 @@ def generate_keys():
     """Generate encryption and JWT keys"""
     import secrets
     import base64
-    
+
     print("\n=== Generating Security Keys ===\n")
-    
+
     # Generate encryption key
     encryption_key = base64.b64encode(secrets.token_bytes(32)).decode()
-    print(f"ENCRYPTION_KEY={encryption_key}")
-    
+    print(f"ENCRYPTION_KEY={encryption_key}")  # Intentionally shown — user must capture and store
+
     # Generate JWT secret
     jwt_secret = secrets.token_urlsafe(32)
-    print(f"JWT_SECRET={jwt_secret}")
-    
+    print(f"JWT_SECRET={jwt_secret}")  # Intentionally shown
+
     print("\n⚠ WARNING: Store these keys securely!")
-    print("Add them to your .env file or environment variables.\n")
+    print("Add them to your .env file or environment variables.")
+    print("⚠ Never commit these keys to version control.\n")
 
 
 def run_server(host: str, port: int, reload: bool):
     """Run the FastAPI server"""
     import uvicorn
     
-    print(f"\n=== Starting Healthcare Compliance Agent API ===\n")
+    print(f"\n=== Starting Cortex Railway Safety Platform API ===\n")
     print(f"Host: {host}")
     print(f"Port: {port}")
     print(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
-    print(f"Database: {os.getenv('DATABASE_URL', 'postgresql://localhost/healthcare')}")
+    print(f"Database: {os.getenv('DATABASE_URL', 'sqlite://~/.cortex/cortex.db')}")
     print(f"\nAPI Documentation: http://{host}:{port}/docs")
     print(f"Health Check: http://{host}:{port}/health")
     print(f"\nPress Ctrl+C to stop\n")

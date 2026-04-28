@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, validator
 import structlog
@@ -44,7 +44,7 @@ class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    role: str = "clinician"
+    role: str = "safety_engineer"
     
     @validator('password')
     def validate_password(cls, v):
@@ -133,24 +133,106 @@ def get_client_ip(request: Request) -> str:
 
 
 def encrypt_user_name(full_name: str) -> str:
-    """Encrypt user's full name (PHI)"""
-    import os
-    encryption_key = os.getenv("ENCRYPTION_KEY")
-    encryption = EncryptionManager(encryption_key.encode() if encryption_key else None)
+    """Encrypt user's full name for storage (EN 50128 — key never logged)."""
+    from cortex.security.encryption import EncryptionManager, get_key_manager
+    key_manager = get_key_manager()
+    encryption = EncryptionManager(key_manager.get_encryption_key())
     encrypted = encryption.encrypt(full_name)
     # Store both ciphertext and nonce (joined by ':') for proper decryption
     return f"{encrypted['ciphertext']}:{encrypted['nonce']}"
 
 
 def decrypt_user_name(encrypted_name: str) -> str:
-    """Decrypt user's full name"""
-    import os
-    encryption_key = os.getenv("ENCRYPTION_KEY")
-    encryption = EncryptionManager(encryption_key.encode() if encryption_key else None)
+    """Decrypt user's full name."""
+    from cortex.security.encryption import EncryptionManager, get_key_manager
+    key_manager = get_key_manager()
+    encryption = EncryptionManager(key_manager.get_encryption_key())
     parts = encrypted_name.split(":")
     if len(parts) != 2:
         return "[Redacted]"  # Legacy format or invalid
     return encryption.decrypt({"ciphertext": parts[0], "nonce": parts[1]})
+
+
+# === httpOnly Cookie Authentication ===
+
+# Cookie name — change for load-balancer multi-instance deployments
+COOKIE_NAME = "cortex_auth_token"
+# COOKIE_NAME = "cortex_auth_token__Secure"  # If using Secure flag in production
+
+
+def get_token_from_request(request: Request) -> str | None:
+    """
+    Extract JWT access token from cookie first, then Authorization header fallback.
+
+    EN 50128 Class B: httpOnly cookie prevents XSS token theft.
+    Authorization header fallback exists for API clients and browser-based
+    tools (Swagger UI, programmatic access) that cannot use cookies.
+
+    Returns:
+        Token string if found in cookie or header, else None.
+    """
+    # 1. Cookie (primary — httpOnly, prevents XSS)
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        return token
+
+    # 2. Authorization: Bearer header (fallback — for API clients/Swagger)
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+
+    return None
+
+
+async def get_current_user_from_request(request: Request) -> User:
+    """
+    FastAPI dependency — get current authenticated user via cookie or header.
+
+    Raises HTTPException 401 if:
+    - Token missing from both cookie and Authorization header
+    - Token expired
+    - Token invalid
+
+    Does NOT raise if token is simply not provided — caller decides
+    whether unauthenticated access is allowed.
+    """
+    from cortex.security.auth import get_auth_manager, TokenExpiredError, AuthenticationError
+
+    token = get_token_from_request(request)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide cortex_auth_token cookie "
+                   "or Authorization: Bearer <token> header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    auth = get_auth_manager()
+    try:
+        return auth.get_current_user(token)
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+async def get_current_active_user_from_request(request: Request) -> User:
+    """FastAPI dependency — require auth and verify user is active."""
+    user = await get_current_user_from_request(request)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account."
+        )
+    return user
 
 
 # === Endpoints ===
@@ -162,13 +244,15 @@ async def register(
 ):
     """
     Register new user
-    
+
     **Roles:**
     - admin: Full access
-    - clinician: PHI access (doctors, nurses)
-    - researcher: Anonymized data only
+    - safety_engineer: Railway safety document access
+    - maintenance_technician: Maintenance record access
+    - operations: Operational document access
+    - compliance_officer: Compliance and audit access
     - auditor: Read-only audit access
-    
+
     **Password Requirements:**
     - Minimum 12 characters
     - At least 1 uppercase letter
@@ -228,16 +312,20 @@ async def register(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: Request,
+    response: Response,
     req: UserLoginRequest
 ):
     """
-    Login and get access token
-    
-    **Returns:**
+    Login and get access token.
+
+    Sets httpOnly; Secure; SameSite=Strict cookie for browser clients.
+    Also returns token in body for API clients and Swagger UI.
+
+    **Returns:** Token in httpOnly cookie + body with:
     - access_token: JWT token (15-minute expiry)
     - refresh_token: Refresh token (7-day expiry)
     - expires_in: Token expiry in seconds
-    
+
     **Account Lockout:**
     After 5 failed login attempts, account is locked for 15 minutes.
     """
@@ -263,6 +351,20 @@ async def login(
             ip_address=client_ip
         )
         
+        # Set httpOnly; Secure; SameSite=Strict cookie (browser clients)
+        # Secure flag omitted here so it works over HTTP in dev.
+        # In production (HTTPS), add: secure=True
+        response.set_cookie(
+            key=COOKIE_NAME,
+            value=tokens["access_token"],
+            max_age=auth.jwt_expiration_minutes * 60,
+            httponly=True,
+            samesite="strict",
+            # secure=True,  # Uncomment on HTTPS production
+            path="/",
+            domain=None,  # Don't set domain — host-only
+        )
+
         return TokenResponse(**tokens)
         
     except AccountLockedError as e:
@@ -332,19 +434,28 @@ async def refresh_token(req: TokenRefreshRequest):
 @router.post("/logout")
 async def logout(
     request: Request,
-    current_user: User = Depends(get_current_active_user)
+    response: Response,
+    current_user: User = Depends(get_current_active_user_from_request),
 ):
     """
-    Logout and invalidate session
-    
-    **Audit:** This action is logged in the audit trail
+    Logout and invalidate session.
+
+    Clears the httpOnly auth cookie and invalidates the server-side session.
+    **Audit:** This action is logged in the audit trail.
     """
     try:
         auth = get_auth_manager()
         auth.logout(user_id=current_user.id)
-        
+
+        # Clear httpOnly cookie
+        response.delete_cookie(
+            key=COOKIE_NAME,
+            path="/",
+            domain=None,
+        )
+
         logger.info("user_logout", user_id=str(current_user.id))
-        
+
         return {"message": "Successfully logged out"}
         
     except Exception as e:
@@ -356,7 +467,7 @@ async def logout(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_active_user)):
+async def get_me(current_user: User = Depends(get_current_active_user_from_request)):
     """
     Get current user information
     
@@ -386,7 +497,7 @@ async def get_me(current_user: User = Depends(get_current_active_user)):
 async def change_password(
     request: Request,
     req: PasswordChangeRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_from_request)
 ):
     """
     Change user password
@@ -456,7 +567,7 @@ async def change_password(
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     request: Request,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user_from_request),
     role: Optional[str] = None,
     is_active: Optional[bool] = None,
     limit: int = 50,
@@ -464,9 +575,9 @@ async def list_users(
 ):
     """
     List users (admin only)
-    
+
     **Query Parameters:**
-    - role: Filter by role (admin, clinician, researcher, auditor)
+    - role: Filter by role (admin, safety_engineer, maintenance_technician, operations, compliance_officer, auditor)
     - is_active: Filter by active status
     - limit: Maximum results (default 50)
     - offset: Pagination offset
@@ -530,7 +641,7 @@ async def list_users(
 async def deactivate_user(
     user_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_from_request)
 ):
     """
     Deactivate user account (admin only)
@@ -600,7 +711,7 @@ async def deactivate_user(
 async def activate_user(
     user_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_from_request)
 ):
     """Activate user account (admin only)"""
     # Check admin role

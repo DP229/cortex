@@ -581,6 +581,7 @@ class DeterministicQuoter:
         # Determine compliance
         is_compliant = self._check_compliance(
             verification_score,
+            citations,
             hallucination_flags,
             threshold,
             safety_class,
@@ -692,11 +693,16 @@ class DeterministicQuoter:
         citation_format: str,
         safety_class: str,
     ) -> Optional[Citation]:
-        """Try exact substring match"""
-        # Normalize for exact match
-        norm_claim = self._normalizer.normalize_for_exact_match(claimed)
-        norm_source = self._normalizer.normalize_for_exact_match(source)
-        
+        """
+        Try exact substring match.
+
+        Uses normalize() (preserves decimals like "3.14") rather than
+        normalize_for_exact_match() which incorrectly stripped periods.
+        """
+        # Use normalize() — preserves decimals, version numbers, percentages
+        norm_claim = self._normalizer.normalize(claimed)
+        norm_source = self._normalizer.normalize(source)
+
         if norm_claim in norm_source:
             start_idx = norm_source.find(norm_claim)
             end_idx = start_idx + len(norm_claim)
@@ -743,9 +749,10 @@ class DeterministicQuoter:
         norm_source = self._normalizer.normalize(source)
         matched_sentences = 0
         best_match_start = 0
-        
+
         for sentence in claim_sentences:
-            norm_sentence = self._normalizer.normalize_for_exact_match(sentence)
+            # Use normalize() to preserve decimals (e.g., "3.14", "v1.2")
+            norm_sentence = self._normalizer.normalize(sentence)
             if norm_sentence in norm_source:
                 matched_sentences += 1
                 best_match_start = norm_source.find(norm_sentence)
@@ -952,6 +959,7 @@ class DeterministicQuoter:
     def _check_compliance(
         self,
         score: float,
+        citations: List[Citation],
         flags: List[Dict],
         threshold: float,
         safety_class: str,
@@ -959,19 +967,19 @@ class DeterministicQuoter:
         """Check if output meets compliance requirements"""
         if not self.strict_mode:
             return score >= 0.6
-        
+
         # High safety classes require verified citations
         if safety_class in ("critical", "high"):
-            has_verified = any(c.verification_status == "verified" for c in self.citations if hasattr(self, 'citations'))
-            has_citations = len(self.citations) > 0 if hasattr(self, 'citations') else False
-            
+            has_verified = any(c.verification_status == "verified" for c in citations)
+            has_citations = len(citations) > 0
+
             return (
                 score >= threshold and
                 has_verified and
                 has_citations and
                 len(flags) == 0
             )
-        
+
         return score >= threshold and len(flags) == 0
 
 
