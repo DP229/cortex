@@ -1,26 +1,26 @@
-# NeuronMesh Quick Start Guide
+# Cortex Quick Start Guide
 
-Get up and running with NeuronMesh in 5 minutes.
+Get up and running with Cortex for railway safety compliance in 5 minutes.
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/dp229/cortex.git
+git clone https://github.com/DP229/cortex.git
 cd cortex
 
 # Install
 pip install -e .
 
-# Or install with all dependencies
+# Install with dev dependencies
 pip install -e ".[dev]"
 ```
 
 ## Prerequisites
 
-NeuronMesh works with multiple LLM providers. Choose one:
+Cortex uses Ollama for local AI inference — no data leaves your machine.
 
-### Option 1: Ollama (Recommended - Free & Local)
+### Install Ollama
 
 ```bash
 # Install Ollama
@@ -33,168 +33,140 @@ ollama pull llama3
 ollama serve
 ```
 
-### Option 2: OpenAI API
-
-```bash
-export OPENAI_API_KEY=your_api_key_here
-```
-
-### Option 3: Anthropic API
-
-```bash
-export ANTHROPIC_API_KEY=your_api_key_here
-```
-
 ## Quick Examples
 
-### 1. Create Your First Agent
+### 1. Requirements Management
 
 ```python
-from cortex import Agent, Memory
+from cortex.models import Requirement
 
-# Create memory for persistence
-memory = Memory()
-
-# Create agent
-agent = Agent(model="llama3", memory=memory)
-
-# Run
-response = agent.run("Hello, remember that I like coffee")
-print(response.content)
-
-# Later - agent remembers
-response = agent.run("What did I say I like?")
-print(response.content)  # "You like coffee!"
+# Create a SIL 2 software requirement
+req = Requirement(
+    title="TCMS shall enforce safe state within 100ms",
+    content="When a critical fault is detected, the system shall enter a defined safe state within 100ms.",
+    safety_class="A",
+    SIL=2,
+    category="safety",
+    priority="high",
+)
+print(f"Requirement created: {req.uuid}")
 ```
 
-### 2. Use Tools
+### 2. SOUP Registration
 
 ```python
-from cortex import create_coder_agent
+from cortex.models import SOUP
 
-# Create coding agent
-coder = create_coder_agent(model="codellama")
-
-# Agent can now use tools
-response = coder.run("List all Python files in this directory")
-print(response.content)
+# Register a third-party RTOS as candidate SOUP
+soup = SOUP(
+    name="FreeRTOS Kernel",
+    vendor="Amazon Web Services",
+    version="11.0.0",
+    checksum="sha256:abc123...",
+    safety_relevance="high",
+    status="candidate",
+)
+print(f"SOUP registered: {soup.uuid}")
 ```
 
-### 3. Multi-Agent Orchestration
+### 3. Test Record with Verification Linking
 
 ```python
-from cortex import Orchestrator, AgentSpec
+from cortex.models import TestRecord
 
-orchestrator = Orchestrator()
-
-# Define agents
-agents = [
-    AgentSpec("researcher", "researcher", "Research the topic thoroughly."),
-    AgentSpec("writer", "writer", "Write a clear summary."),
-]
-
-# Run pipeline
-result = orchestrator.sync_sequential(agents, "What is AI?")
-
-print(result.outputs["researcher"])
-print(result.outputs["writer"])
+# Create a test record linked to a requirement
+test = TestRecord(
+    title="Module Test: Safe State Enforcement",
+    requirement_uuid="<requirement-uuid>",
+    test_type="module",
+    passed=15,
+    failed=0,
+    blocked=0,
+)
+# Automatically updates requirement verification_status
+print(f"Test executed, verification status updated")
 ```
 
-### 4. CLI Usage
+### 4. RTM Generation
+
+```python
+from cortex.rtm import RTMGenerator
+
+rtm = RTMGenerator()
+matrix = rtm.generate_full_matrix()
+# Returns bidirectional traceability: req → design → code → test → verification → validation
+```
+
+### 5. T2 Qualification (CI)
 
 ```bash
-# Run agent
-cortex agent run "What is Python?"
+# Run T2 qualification for SIL 2 target
+python -m cortex.ci_qualify qualify --sil-target SIL2
 
-# Interactive chat
-cortex agent chat
-
-# List models
-cortex model list
-
-# Memory operations
-cortex memory add "Important fact" --type fact --importance 0.8
-cortex memory search "fact"
+# Generate signed evidence artifact
+python -m cortex.ci_qualify evidence --sil-target SIL2
 ```
 
-## Examples
+### 6. Regression Guard
 
-See the `examples/` directory for more:
-
-| Example | Description |
-|---------|-------------|
-| `00_welcome.py` | Feature showcase |
-| `01_quickstart.py` | Basic agent + memory |
-| `02_multi_agent.py` | Multiple agents |
-| `04_tools.py` | Tool system demo |
-| `05_memory_rag.py` | Memory with RAG |
-| `06_orchestrator.py` | Multi-agent orchestration |
-
-Run an example:
 ```bash
-python examples/00_welcome.py
+# Verify pinned hashes (fails CI on unexpected changes)
+python -m cortex.regression_guard verify
+
+# Regenerate expectations after intentional code change
+python -m cortex.regression_guard generate
 ```
 
-## Architecture
+## Starting the Application
 
+### Backend
+
+```bash
+uvicorn cortex.api:app --reload --port 8080
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Cortex                                 │
-│                                                              │
-│  ┌─────────┐    ┌──────────────┐    ┌─────────┐           │
-│  │  Agent  │◄──►│ KnowledgeBase│◄──►│  Brain  │           │
-│  │         │    │   (Wiki)     │    │ (LLMs)  │           │
-│  └────┬────┘    └──────────────┘    └────┬────┘           │
-│       │                                   │                │
-│       └──────────┬────────────────────────┘                │
-│                  │                                         │
-│          ┌──────┴──────┐                                 │
-│          │ Orchestrator │  Sequential, Parallel           │
-│          └─────────────┘                                 │
-└─────────────────────────────────────────────────────────────┘
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Cortex                                 │
-│                                                              │
-│  ┌─────────┐    ┌──────────────┐    ┌─────────┐           │
-│  │  Agent  │◄──►│ KnowledgeBase│◄──►│  Brain  │           │
-│  │         │    │   (Wiki)     │    │ (LLMs)  │           │
-│  └────┬────┘    └──────────────┘    └────┬────┘           │
-│       │                                   │                │
-│       └──────────┬────────────────────────┘                │
-│                  │                                         │
-│          ┌──────┴──────┐                                 │
-│          │ Orchestrator │  Sequential, Parallel           │
-│          └─────────────┘                                 │
-└─────────────────────────────────────────────────────────────┘
+
+Open [http://localhost:5173](http://localhost:5173)
+
+## Register a User
+
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"engineer@example.com","password":"SecurePass123!","full_name":"Safety Engineer","role":"safety_engineer"}'
 ```
+
+Available roles: `safety_engineer`, `reviewer`, `auditor`, `admin`
 
 ## Next Steps
 
-- Read the [API Reference](API.md)
-- Explore [Examples](examples/)
-- Check out the [12-Week Plan](PLAN.md)
-- Join the community
+- Read the [User Guide](USER_GUIDE.md) for full feature documentation
+- Review the [API Reference](API.md) for all REST endpoints
+- See the [Deployment Guide](DEPLOYMENT.md) for production setup
 
 ## Troubleshooting
 
 ### "Ollama not available"
 
-Start Ollama:
 ```bash
 ollama serve
 ```
 
 ### "Model not found"
 
-Pull the model:
 ```bash
 ollama pull llama3
 ```
 
 ### Import errors
 
-Reinstall:
 ```bash
 pip install -e .
 ```

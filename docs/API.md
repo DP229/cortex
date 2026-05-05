@@ -1,420 +1,397 @@
-# NeuronMesh API Reference
+# Cortex API Reference
 
-Complete API documentation for NeuronMesh.
+Complete REST API documentation for Cortex — EN 50128 Railway Safety Compliance Platform.
 
-## Agent
+Base URL: `http://localhost:8080`
 
-### Agent
+All endpoints require JWT authentication unless noted. Use `POST /auth/login` to obtain a token.
 
-```python
-from cortex import Agent, Memory
+---
 
-agent = Agent(
-    name: str = "agent",           # Agent name
-    model: str = "llama3",         # Model to use
-    brain: Brain = None,            # LLM interface (optional)
-    memory: Memory = None,          # Memory instance (optional)
-    config: AgentConfig = None,    # Configuration (optional)
-    tools: ToolRegistry = None,     # Tool registry (optional)
-)
+## Authentication
+
+### POST /auth/register
+
+Register a new user.
+
+```json
+{
+  "email": "engineer@example.com",
+  "password": "SecurePass123!",
+  "full_name": "Safety Engineer",
+  "role": "safety_engineer"
+}
 ```
 
-#### Methods
+**Roles:** `safety_engineer`, `reviewer`, `auditor`, `admin`
 
-**`run(prompt: str, memory: Memory = None, max_turns: int = None) -> AgentResponse`**
+---
 
-Run the agent synchronously.
+### POST /auth/login
 
-```python
-response = agent.run("What is Python?")
-print(response.content)
+```json
+{
+  "email": "engineer@example.com",
+  "password": "SecurePass123!"
+}
 ```
 
-**`run_async(prompt: str, memory: Memory = None, stream_callback: Callable = None) -> AgentResponse`**
+**Response:** Sets httpOnly cookie + returns JWT.
 
-Run the agent asynchronously.
+---
 
-```python
-response = await agent.run_async("Write code")
+### POST /auth/refresh
+
+Refresh JWT token. Reads refresh token from httpOnly cookie.
+
+---
+
+### POST /auth/logout
+
+Clear auth cookie and invalidate session.
+
+---
+
+## Requirements
+
+EN 50128 software requirements management.
+
+### GET /requirements/
+
+List all requirements with optional filters.
+
+**Query params:** `safety_class`, `SIL`, `category`, `status`, `limit`, `offset`
+
+### POST /requirements/
+
+Create a new requirement.
+
+```json
+{
+  "title": "TCMS shall enforce safe state within 100ms",
+  "content": "When a critical fault is detected, the system shall enter a defined safe state within 100ms.",
+  "safety_class": "A",
+  "SIL": 2,
+  "category": "safety",
+  "priority": "high"
+}
 ```
 
-**`reset()`**
+### GET /requirements/{uuid}
 
-Reset conversation history.
+Get requirement with bidirectional traceability citations.
 
-```python
-agent.reset()
+### PUT /requirements/{uuid}
+
+Update requirement. Locked if requirement is approved.
+
+### DELETE /requirements/{uuid}
+
+Soft-delete requirement (EN 50128: 10-year retention).
+
+### POST /requirements/{uuid}/approve
+
+Approve requirement. Requires `safety_engineer` or `reviewer` role.
+
+### POST /requirements/{uuid}/citations
+
+Add traceability citation to another requirement.
+
+```json
+{
+  "target_uuid": "<requirement-uuid>",
+  "link_type": "verifies",
+  "notes": "Implements hazard mitigation H-001"
+}
 ```
 
-#### AgentResponse
+**Link types:** `specifies`, `allocated_to`, `implements`, `verifies`, `validates`, `derived_from`, `refines`, `traces_to`, `conflicts_with`, `satisfies`
 
-```python
-@dataclass
-class AgentResponse:
-    content: str              # Response text
-    turns: List[Turn]         # Turn history
-    final: bool               # Is this final?
-    error: Optional[str]      # Error message
-    latency_ms: int          # Latency in ms
-    cost: float              # Cost in credits
-    model: str               # Model used
+### POST /requirements/{uuid}/citations/{citation_uuid}/verify
+
+Mark a citation as verified.
+
+### GET /test-records/requirement/{uuid}/verification-status
+
+Get verification status summary for a requirement based on all linked test records:
+- **verified** — all linked tests passed
+- **failed** — any linked test has failures
+- **pending** — no tests or some blocked
+
+---
+
+## SOUPs
+
+EN 50128 §4.2 Software of Unknown Pedigree register.
+
+### GET /soups/
+
+List all SOUPs with optional status filter (`candidate`, `approved`, `rejected`).
+
+### POST /soups/
+
+Register a new candidate SOUP.
+
+```json
+{
+  "name": "FreeRTOS Kernel",
+  "vendor": "Amazon Web Services",
+  "version": "11.0.0",
+  "checksum": "sha256:abc123...",
+  "safety_relevance": "high",
+  "documentation_url": "https://freertos.org",
+  "notes": "Used in TCMS task scheduler"
+}
 ```
 
-### Convenience Functions
+### GET /soups/{uuid}
 
-```python
-# General agent
-agent = create_agent(model="llama3")
+Get SOUP details and lifecycle history.
 
-# Coder agent
-coder = create_coder_agent(model="codellama")
+### PUT /soups/{uuid}
 
-# Researcher agent
-researcher = create_researcher_agent(model="llama3")
+Update candidate SOUP. Locked after approval.
+
+### DELETE /soups/{uuid}
+
+Soft-delete candidate SOUP. Locked after approval.
+
+### POST /soups/{uuid}/approve
+
+Approve SOUP for use in SIL 2+ development. Locked after approval.
+
+```json
+{
+  "justification": "Supplier provided IEC 62304 evidence; FreeRTOS is widely deployed in railway applications"
+}
+```
+
+### POST /soups/{uuid}/reject
+
+Reject candidate SOUP.
+
+```json
+{
+  "justification": "Insufficient failure mode evidence for SIL 3 use"
+}
 ```
 
 ---
 
-## Memory
+## Assets
 
-### Memory
+Railway infrastructure asset register.
 
-```python
-from cortex import Memory, MemoryType
+### GET /assets/
 
-memory = Memory(
-    storage_path: str = None,      # Path for persistence
-    max_stm_size: int = 100,       # Max short-term memories
-    consolidation_threshold: float = 0.6,  # When to consolidate
-    decay_enabled: bool = True,     # Enable memory decay
-    agent_id: str = None,          # Agent identifier
-    session_id: str = None,        # Session identifier
-)
+List assets with optional parent filter for hierarchy.
+
+### POST /assets/
+
+Create an asset.
+
+```json
+{
+  "name": "ATP Controller Unit A",
+  "asset_type": "onboard",
+  "safety_class": "A",
+  "SIL": 3,
+  "parent_uuid": "<parent-asset-uuid>",
+  "notes": "Primary ATP controller on train set A"
+}
 ```
 
-#### Methods
+### GET /assets/{uuid}
 
-**`add(content: str, entry_type: str = "fact", importance: float = 0.5, memory_type: MemoryType = MemoryType.LONG_TERM, metadata: dict = None) -> MemoryEntry`**
+Get asset with hierarchical children.
 
-Add a memory.
+### PUT /assets/{uuid}
 
-```python
-memory.add(
-    "User prefers dark mode",
-    entry_type="preference",
-    importance=0.8,
-    tags=["ui", "preference"]
-)
+Update asset.
+
+### DELETE /assets/{uuid}
+
+Soft-delete asset (EN 50128: 10-year retention enforced).
+
+---
+
+## Test Records
+
+EN 50128 Table A.3 verification records.
+
+### GET /test-records/
+
+List test records with optional filters (`requirement_uuid`, `test_type`, `status`).
+
+### POST /test-records/
+
+Create a test record linked to a requirement.
+
+```json
+{
+  "title": "Module Test: Safe State Enforcement",
+  "requirement_uuid": "<requirement-uuid>",
+  "test_type": "module",
+  "test_method": "black_box",
+  "passed": 15,
+  "failed": 0,
+  "blocked": 0,
+  "execution_date": "2026-04-28",
+  "executor": "safety_engineer@example.com",
+  "notes": "All test cases passed; see test protocol C-2026-0428"
+}
 ```
 
-**`retrieve(query: str, limit: int = 5, memory_types: List[MemoryType] = None) -> List[MemoryEntry]`**
+**Test types:** `module`, `integration`, `overall_software`, `system_integration`, `system_validation`
 
-Retrieve relevant memories.
+### GET /test-records/{uuid}
 
-```python
-results = memory.retrieve("What are user preferences?", limit=5)
-for entry in results:
-    print(entry.content)
-```
+Get test record details.
 
-**`remember(query: str, context: str = None, limit: int = 3) -> str`**
+### PUT /test-records/{uuid}
 
-Get formatted memory context.
+Update test record (e.g., add execution results).
 
-```python
-context = memory.remember("What is the user working on?")
-```
+### DELETE /test-records/{uuid}
 
-**`forget(id: str)`**
+Delete test record.
 
-Remove a memory.
+### POST /test-records/{uuid}/execute
 
-**`clear(memory_type: MemoryType = None)`**
+Record test execution results and update parent requirement's verification status.
 
-Clear memories.
-
-**`get_stats() -> dict`**
-
-Get memory statistics.
-
-```python
-stats = memory.get_stats()
-print(stats)
-# {'stm_size': 10, 'working_size': 2, 'ltm_size': 50, ...}
-```
-
-### MemoryType
-
-```python
-from cortex import MemoryType
-
-MemoryType.SHORT_TERM    # Recent conversation
-MemoryType.LONG_TERM     # Persistent memories
-MemoryType.WORKING       # Current task
-MemoryType.SEMANTIC      # Facts and knowledge
-MemoryType.PROCEDURAL    # Skills
-MemoryType.EPISODIC      # Events
-```
-
-### MemoryEntry
-
-```python
-@dataclass
-class MemoryEntry:
-    id: str
-    content: str
-    entry_type: str       # "fact", "preference", "skill", etc.
-    memory_type: MemoryType
-    importance: float     # 0.0 - 1.0
-    embedding: List[float]
-    created_at: float
-    last_accessed: float
-    access_count: int
-    metadata: dict
+```json
+{
+  "passed": 20,
+  "failed": 1,
+  "blocked": 0,
+  "execution_date": "2026-04-28",
+  "executor": "safety_engineer@example.com"
+}
 ```
 
 ---
 
-## Brain (LLM Interface)
+## RTM
 
-### Brain
+Requirements Traceability Matrix.
 
-```python
-from cortex import Brain, ModelConfig, ModelProvider
+### GET /rtm/full
 
-brain = Brain(
-    registry: ModelRegistry = None,   # Model registry
-    default_model: str = "llama3",    # Default model
-    api_key: str = None,              # API key
-)
-```
+Generate full bidirectional RTM covering the complete V-model:
+System Requirements → Hazard/Risk Analysis → Safety Requirements → System Architecture → Software Requirements → Software Architecture → Software Design → Module Design → Module Testing → Software Integration → Integration Testing → Overall Software Testing → System Integration → System Validation
 
-#### Methods
+### GET /rtm/requirement/{uuid}
 
-**`generate(prompt: str, model: str = None, config: ModelConfig = None) -> tuple[str, dict]`**
+Get traceability view for a single requirement (all upstream and downstream links).
 
-Generate text.
+### GET /rtm/export/reqif
 
-```python
-text, usage = brain.generate(
-    "Hello",
-    model="llama3",
-    config=ModelConfig(temperature=0.7)
-)
-```
-
-**`generate_stream(prompt: str, model: str = None) -> AsyncIterator[str]`**
-
-Stream text generation.
-
-```python
-async for chunk in brain.generate_stream("Write a story"):
-    print(chunk, end="")
-```
-
-**`get_stats() -> dict`**
-
-Get usage statistics.
-
-### ModelConfig
-
-```python
-@dataclass
-class ModelConfig:
-    temperature: float = 0.7
-    max_tokens: int = 2048
-    top_p: float = 0.9
-    top_k: int = 40
-    stop: List[str] = None
-    stream: bool = False
-```
-
-### ModelRegistry
-
-```python
-registry = brain.registry
-
-# List all models
-models = registry.list()
-
-# List free models
-free_models = registry.list_free()
-
-# Get model info
-model = registry.get("llama3")
-
-# Select best model
-model = registry.select(task="chat", prefer_free=True)
-```
-
-### ModelProvider
-
-```python
-from cortex import ModelProvider
-
-ModelProvider.OPENAI      # OpenAI models
-ModelProvider.ANTHROPIC   # Claude models
-ModelProvider.OLLAMA       # Local Ollama
-ModelProvider.GROQ         # Groq models
-ModelProvider.OPENROUTER   # OpenRouter
-```
+Export RTM in ReqIF format (DOORS-compatible XSD validation).
 
 ---
 
-## Tools
+## T2 Qualification
 
-### ToolRegistry
+Automated tool qualification for EN 50128 SIL 2+.
 
-```python
-from cortex import ToolRegistry, create_default_tools
+### GET /qualification/evidence/{sil_target}
 
-# Use default tools
-registry = create_default_tools()
+Retrieve signed T2 evidence artifact for a SIL target (`SIL0`, `SIL1`, `SIL2`, `SIL3`, `SIL4`).
 
-# Or create empty
-registry = ToolRegistry()
-```
+### POST /qualification/run
 
-#### Methods
+Trigger T2 qualification run (returns job ID for async tracking).
 
-**`register(tool: BaseTool)`**
+### GET /qualification/status
 
-Register a tool.
-
-**`get(name: str) -> BaseTool`**
-
-Get a tool by name.
-
-**`list_tools() -> List[ToolDefinition]`**
-
-List all tools.
-
-**`get_schema() -> List[dict]`**
-
-Get OpenAI function schemas.
-
-**`execute(name: str, parameters: dict) -> ToolResult`**
-
-Execute a tool.
-
-### Built-in Tools
-
-```python
-from cortex import (
-    BashTool,       # Execute shell commands
-    ReadFileTool,   # Read files
-    WriteFileTool,  # Write files
-    GlobTool,       # Find files
-    GrepTool,      # Search in files
-    WebSearchTool,  # Web search
-    MemorySearchTool,  # Search memory
-    MemoryStoreTool,   # Store memory
-)
-```
+Get qualification run status.
 
 ---
 
-## Orchestrator
+## Audit
 
-### Orchestrator
+Immutable audit log.
 
-```python
-from cortex import Orchestrator, AgentSpec, OrchestrationPattern
+### GET /audit/
 
-orchestrator = Orchestrator(
-    memory: Memory = None,
-    default_model: str = "llama3",
-)
-```
+List audit events with filters (`action`, `user`, `start_date`, `end_date`, `limit`).
 
-#### Patterns
-
-**Sequential**
-
-```python
-agents = [
-    AgentSpec("researcher", "researcher", "Research the topic."),
-    AgentSpec("writer", "writer", "Write a summary."),
-]
-
-result = orchestrator.sync_sequential(agents, "AI trends")
-print(result.outputs["researcher"])
-print(result.outputs["writer"])
-```
-
-**Parallel**
-
-```python
-agents = [
-    AgentSpec("analyst1", "analyst", "Analyze from perspective A."),
-    AgentSpec("analyst2", "analyst", "Analyze from perspective B."),
-]
-
-result = orchestrator.sync_parallel(agents, "Should we invest in AI?")
-```
-
-**Hierarchical**
-
-```python
-manager = AgentSpec("manager", "manager", "Coordinate the team.")
-sub_agents = [
-    AgentSpec("frontend", "dev", "Build UI."),
-    AgentSpec("backend", "dev", "Build API."),
-]
-
-result = await orchestrator.hierarchical(manager, sub_agents, "Build an app")
-```
-
-### AgentSpec
-
-```python
-@dataclass
-class AgentSpec:
-    name: str
-    role: str
-    instructions: str
-    model: str = "llama3"
-    tools_enabled: bool = True
-    memory_enabled: bool = True
-```
+**Note:** Audit logs are append-only and cryptographically signed (Merkle + HMAC-SHA256). They cannot be modified or deleted.
 
 ---
 
-## Configuration
+## Health
 
-### CLI Configuration
+### GET /health
 
-```bash
-# Set default model
-cortex config set model gpt-4
+API health check. No authentication required.
 
-# Enable verbose output
-cortex --verbose agent run "Hello"
+### GET /
 
-# JSON output
-cortex --json model list
-```
-
-### Environment Variables
-
-```bash
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-OLLAMA_BASE_URL=http://localhost:11434
-OPENPOOL_URL=http://localhost:8080
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-```
+Root endpoint. Returns basic info.
 
 ---
 
-## Error Handling
+## Models
 
-```python
-from cortex import Agent
+### Requirement
+| Field | Type | Description |
+|-------|------|-------------|
+| uuid | string | Unique identifier |
+| title | string | Requirement title |
+| content | string | Full requirement text |
+| safety_class | string | A, B, C, or D |
+| SIL | integer | 0–4 |
+| category | string | functional, safety, performance, interface |
+| priority | string | critical, high, medium, low |
+| status | string | draft, approved, rejected |
+| verification_status | string | verified, failed, pending |
+| created_by | string | User email |
+| created_at | datetime | Creation timestamp |
+| updated_at | datetime | Last update |
 
-try:
-    agent = Agent(model="nonexistent-model")
-    response = agent.run("Hello")
-except Exception as e:
-    print(f"Error: {e}")
-```
+### SOUP
+| Field | Type | Description |
+|-------|------|-------------|
+| uuid | string | Unique identifier |
+| name | string | Software component name |
+| vendor | string | Supplier name |
+| version | string | Version identifier |
+| checksum | string | SHA-256 checksum |
+| safety_relevance | string | critical, high, medium, low, none |
+| status | string | candidate, approved, rejected |
+| justification | string | Approval/rejection reason |
+| created_by | string | User email |
+| created_at | datetime | Creation timestamp |
+| updated_at | datetime | Last update |
+
+### Asset
+| Field | Type | Description |
+|-------|------|-------------|
+| uuid | string | Unique identifier |
+| name | string | Asset name |
+| asset_type | string | onboard, wayside, infrastructure |
+| safety_class | string | A, B, C, or D |
+| SIL | integer | 0–4 |
+| parent_uuid | string | Parent asset UUID for hierarchy |
+| created_by | string | User email |
+| created_at | datetime | Creation timestamp |
+| updated_at | datetime | Last update |
+
+### TestRecord
+| Field | Type | Description |
+|-------|------|-------------|
+| uuid | string | Unique identifier |
+| title | string | Test record title |
+| requirement_uuid | string | Linked requirement UUID |
+| test_type | string | module, integration, overall_software, etc. |
+| test_method | string | black_box, white_box, grey_box |
+| passed | integer | Passed test cases |
+| failed | integer | Failed test cases |
+| blocked | integer | Blocked test cases |
+| verification_status | string | verified, failed, pending |
+| execution_date | date | Test execution date |
+| executor | string | User email |
+| created_at | datetime | Creation timestamp |
+| updated_at | datetime | Last update |
