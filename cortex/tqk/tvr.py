@@ -154,12 +154,14 @@ class ToolVerificationReport:
     def calculate_overall_result(self) -> TestResult:
         """Calculate overall qualification result"""
         if not self.test_results:
-            return TestResult.NOT_EXECUTED
+            self.overall_result = TestResult.NOT_EXECUTED
+            return self.overall_result
         
         # Check for any failures
         failed = self.get_results_by_result(TestResult.FAIL)
         if failed:
-            return TestResult.FAIL
+            self.overall_result = TestResult.FAIL
+            return self.overall_result
         
         # Check if all executed passed
         executed = [tr for tr in self.test_results if tr.result != TestResult.NOT_EXECUTED]
@@ -224,7 +226,6 @@ class ToolVerificationReport:
             "tool_name": self.tool_name,
             "tool_version": self.tool_version,
             "tvp_version": self.tvp_version,
-            "generated_at": datetime.now().isoformat(),
             "execution_start_date": datetime.fromtimestamp(self.execution_start_date).isoformat(),
             "execution_end_date": datetime.fromtimestamp(self.execution_end_date).isoformat() if self.execution_end_date else None,
             "environment": self.environment,

@@ -17,7 +17,8 @@ from uuid import UUID
 
 from jose import JWTError, jwt
 from jose.exceptions import ExpiredSignatureError, JWTClaimsError
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import structlog
 
 from cortex.database import get_database_manager
@@ -574,7 +575,3 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
             detail="Inactive user"
         )
     return current_user
-
-
-from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials

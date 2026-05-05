@@ -259,12 +259,13 @@ async def create_requirement(
         session.add(requirement)
         session.commit()
         session.refresh(requirement)
+        response = _requirement_to_response(requirement)
 
     log_audit(
         action=AuditAction.REQUIREMENT_CREATE.value,
         user_id=current_user.id,
         resource_type="requirement",
-        resource_id=str(requirement.id),
+        resource_id=response.id,
         ip_address=get_client_ip(request),
         details={
             "requirement_id": req.requirement_id,
@@ -273,7 +274,7 @@ async def create_requirement(
         },
     )
 
-    return _requirement_to_response(requirement)
+    return response
 
 
 @router.get("/", response_model=List[RequirementResponse])
@@ -318,8 +319,9 @@ async def list_requirements(
 
         total = query.count()
         results = query.order_by(Requirement.created_at.desc()).offset(offset).limit(limit).all()
+        response = [_requirement_to_response(r) for r in results]
 
-    return [_requirement_to_response(r) for r in results]
+    return response
 
 
 @router.get("/{requirement_uuid}", response_model=RequirementTraceabilityResponse)
@@ -371,18 +373,20 @@ async def get_requirement(
             TestRecord.requirement_id == requirement_uuid
         ).all()
 
-    return RequirementTraceabilityResponse(
-        requirement=_requirement_to_response(requirement),
-        citations=[_citation_to_response(c) for c in upstream + downstream],
-        derived_requirements=[_requirement_to_response(r) for r in derived],
-        test_records=[{
-            "id": str(t.id),
-            "test_id": t.test_id,
-            "test_type": t.test_type,
-            "status": t.status,
-            "executed_at": t.executed_at.isoformat() if t.executed_at else None,
-        } for t in test_records],
-    )
+        response = RequirementTraceabilityResponse(
+            requirement=_requirement_to_response(requirement),
+            citations=[_citation_to_response(c) for c in upstream + downstream],
+            derived_requirements=[_requirement_to_response(r) for r in derived],
+            test_records=[{
+                "id": str(t.id),
+                "test_id": t.test_id,
+                "test_type": t.test_type,
+                "status": t.status,
+                "executed_at": t.executed_at.isoformat() if t.executed_at else None,
+            } for t in test_records],
+        )
+
+    return response
 
 
 @router.patch("/{requirement_uuid}", response_model=RequirementResponse)
@@ -445,6 +449,7 @@ async def update_requirement(
 
         session.commit()
         session.refresh(requirement)
+        response = _requirement_to_response(requirement)
 
     log_audit(
         action=AuditAction.REQUIREMENT_UPDATE.value,
@@ -455,7 +460,7 @@ async def update_requirement(
         details={"updated_fields": update.model_dump(exclude_none=True)},
     )
 
-    return _requirement_to_response(requirement)
+    return response
 
 
 @router.post("/{requirement_uuid}/approve", response_model=RequirementResponse)
@@ -491,6 +496,7 @@ async def approve_requirement(
         requirement.approved_at = datetime.utcnow()
         session.commit()
         session.refresh(requirement)
+        response = _requirement_to_response(requirement)
 
     log_audit(
         action=AuditAction.REQUIREMENT_APPROVE.value,
@@ -501,7 +507,7 @@ async def approve_requirement(
         details={"comment": body.comment if body else None, "action": "approved"},
     )
 
-    return _requirement_to_response(requirement)
+    return response
 
 
 # === Traceability Citations ===
@@ -567,12 +573,13 @@ async def create_citation(
         session.add(citation)
         session.commit()
         session.refresh(citation)
+        response = _citation_to_response(citation)
 
     log_audit(
         action=AuditAction.REQUIREMENT_CITATION_ADD.value,
         user_id=current_user.id,
         resource_type="requirement_citation",
-        resource_id=str(citation.id),
+        resource_id=response.id,
         ip_address=get_client_ip(request),
         details={
             "source": citation_req.source_requirement_id,
@@ -581,7 +588,7 @@ async def create_citation(
         },
     )
 
-    return _citation_to_response(citation)
+    return response
 
 
 @router.get("/citations", response_model=List[CitationResponse])
@@ -615,8 +622,9 @@ async def list_citations(
             query = query.filter(RequirementCitation.verified == verified)
 
         results = query.limit(limit).all()
+        response = [_citation_to_response(c) for c in results]
 
-    return [_citation_to_response(c) for c in results]
+    return response
 
 
 @router.patch("/citations/{citation_id}/verify", response_model=CitationResponse)
@@ -651,6 +659,7 @@ async def verify_citation(
         citation.verified_by = current_user.id
         session.commit()
         session.refresh(citation)
+        response = _citation_to_response(citation)
 
     log_audit(
         action=AuditAction.REQUIREMENT_CITATION_VERIFY.value,
@@ -660,4 +669,4 @@ async def verify_citation(
         ip_address=get_client_ip(request),
     )
 
-    return _citation_to_response(citation)
+    return response

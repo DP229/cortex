@@ -963,3 +963,95 @@ class RTMExporter:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(json_content)
         logger.info(f"Exported RTM to {output_path}")
+
+
+# =============================================================================
+# V-MODEL TRACE TYPES (EN 50128)
+# =============================================================================
+
+class VModelTraceType:
+    """
+    EN 50128 V-model traceability types (req ↔ design ↔ code ↔ test).
+
+    Extends the standard requirement-test traceability to the full
+    V-model lifecycle: requirements allocate to design, design
+    implemented by code, code verified by tests.
+    """
+    REQUIREMENT_TO_DESIGN = "requirement_to_design"
+    DESIGN_TO_CODE = "design_to_code"
+    CODE_TO_TEST = "code_to_test"
+    REQUIREMENT_TO_TEST = "requirement_to_test"
+
+    ALL = [REQUIREMENT_TO_DESIGN, DESIGN_TO_CODE, CODE_TO_TEST, REQUIREMENT_TO_TEST]
+
+
+class VModelTraceBuilder:
+    """
+    Builds V-model traceability chains from parsed compliance tags.
+    """
+
+    def __init__(self):
+        self.req_to_design: Dict[str, List[str]] = {}
+        self.design_to_code: Dict[str, List[str]] = {}
+        self.code_to_test: Dict[str, List[str]] = {}
+        self.req_to_test: Dict[str, List[str]] = {}
+
+    def add_requirement(self, req_id: str) -> None:
+        if req_id not in self.req_to_design:
+            self.req_to_design[req_id] = []
+        if req_id not in self.req_to_test:
+            self.req_to_test[req_id] = []
+
+    def add_design(self, design_id: str, implements_req: str) -> None:
+        if implements_req not in self.req_to_design:
+            self.req_to_design[implements_req] = []
+        self.req_to_design[implements_req].append(design_id)
+        if design_id not in self.design_to_code:
+            self.design_to_code[design_id] = []
+
+    def add_code(self, code_id: str, implements_design: str) -> None:
+        if implements_design not in self.design_to_code:
+            self.design_to_code[implements_design] = []
+        self.design_to_code[implements_design].append(code_id)
+        if code_id not in self.code_to_test:
+            self.code_to_test[code_id] = []
+
+    def add_test(self, test_id: str, verifies_req: str) -> None:
+        if verifies_req not in self.req_to_test:
+            self.req_to_test[verifies_req] = []
+        self.req_to_test[verifies_req].append(test_id)
+
+    def build_full_chain(self, req_id: str) -> Dict[str, Any]:
+        designs = self.req_to_design.get(req_id, [])
+        all_code = []
+        for d in designs:
+            all_code.extend(self.design_to_code.get(d, []))
+        all_tests = []
+        for c in all_code:
+            all_tests.extend(self.code_to_test.get(c, []))
+        all_tests.extend(self.req_to_test.get(req_id, []))
+
+        return {
+            "requirement": req_id,
+            "designs": designs,
+            "code_modules": all_code,
+            "tests": all_tests,
+            "fully_traced": len(designs) > 0 and len(all_code) > 0 and len(all_tests) > 0,
+        }
+
+    def get_coverage_report(self) -> Dict[str, Any]:
+        if not self.req_to_design:
+            return {"total_requirements": 0, "fully_traced": 0, "coverage_pct": 0.0}
+
+        total = len(self.req_to_design)
+        full_count = sum(1 for r in self.req_to_design if
+                         len(self.req_to_design[r]) > 0 and
+                         all(len(self.design_to_code.get(d, [])) > 0
+                             for d in self.req_to_design[r]) and
+                         len(self.req_to_test.get(r, [])) > 0)
+
+        return {
+            "total_requirements": total,
+            "fully_traced": full_count,
+            "coverage_pct": (full_count / total * 100) if total > 0 else 0.0,
+        }

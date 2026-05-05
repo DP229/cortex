@@ -226,8 +226,9 @@ class RedisTokenBucket:
         
         except Exception as e:
             logger.error(f"redis_rate_limit_error: {e}")
-            # Fail open if Redis is down (but log it)
-            return True, capacity - requested, 0.0
+            # Fail CLOSED for safety — deny requests when Redis is unavailable
+            # This prevents bypassing rate limits when the rate limiter is down
+            return False, 0, 60.0
     
     def _check_local(
         self,

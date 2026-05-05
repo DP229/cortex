@@ -16,3 +16,4 @@ frontend/dist/
 .coverage
 htmlcov/
 .pytest_cache/
+.cortex/

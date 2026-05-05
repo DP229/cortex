@@ -21,10 +21,8 @@ import structlog
 from cortex.auth_routes import get_current_active_user_from_request
 from cortex.security.rbac import Permission, ROLE_PERMISSIONS
 from cortex.models import User, UserRole
-from cortex.audit import (
-    AuditLogger, AuditAction, RailwayIncidentManager,
-    IncidentType, IncidentSeverity,
-)
+from cortex.audit import AuditLogger, AuditAction, RailwayIncidentManager
+from cortex.models import IncidentType, IncidentSeverity
 
 logger = structlog.get_logger()
 

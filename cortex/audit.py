@@ -124,41 +124,59 @@ class AuditLogger:
             UUID of created audit log entry, or None on failure
         """
         try:
-            db = self._get_db()
-
-            # Import here to avoid circular imports after models.py rewrite
             from cortex.models import AuditLog as AuditLogModel
 
-            audit_record = AuditLogModel(
-                id=str(uuid4()),
-                user_id=str(entry.user_id) if entry.user_id else None,
-                action=entry.action.value,
-                resource_type=entry.resource_type,
-                resource_id=str(entry.resource_id) if entry.resource_id else None,
-                asset_id=str(entry.asset_id) if entry.asset_id else None,
-                ip_address=entry.ip_address,
-                user_agent=entry.user_agent,
-                details=entry.details,
-                timestamp=datetime.utcnow(),
-            )
-
-            db.add(audit_record)
-            db.commit()
-            db.refresh(audit_record)
+            audit_id = None
+            if self.db is not None:
+                audit_record = AuditLogModel(
+                    id=str(uuid4()),
+                    user_id=str(entry.user_id) if entry.user_id else None,
+                    action=entry.action.value if isinstance(entry.action, AuditAction) else str(entry.action),
+                    resource_type=entry.resource_type,
+                    resource_id=str(entry.resource_id) if entry.resource_id else None,
+                    asset_id=str(entry.asset_id) if entry.asset_id else None,
+                    ip_address=entry.ip_address,
+                    user_agent=entry.user_agent,
+                    details=entry.details,
+                    timestamp=datetime.utcnow(),
+                )
+                self.db.add(audit_record)
+                self.db.commit()
+                self.db.refresh(audit_record)
+                audit_id = UUID(audit_record.id)
+            else:
+                with get_session() as session:
+                    audit_record = AuditLogModel(
+                        id=str(uuid4()),
+                        user_id=str(entry.user_id) if entry.user_id else None,
+                        action=entry.action.value if isinstance(entry.action, AuditAction) else str(entry.action),
+                        resource_type=entry.resource_type,
+                        resource_id=str(entry.resource_id) if entry.resource_id else None,
+                        asset_id=str(entry.asset_id) if entry.asset_id else None,
+                        ip_address=entry.ip_address,
+                        user_agent=entry.user_agent,
+                        details=entry.details,
+                        timestamp=datetime.utcnow(),
+                    )
+                    session.add(audit_record)
+                    session.commit()
+                    session.refresh(audit_record)
+                    audit_id = UUID(audit_record.id)
 
             logger.info(
                 "audit_logged",
-                action=entry.action.value,
+                action=entry.action.value if isinstance(entry.action, AuditAction) else str(entry.action),
                 user_id=str(entry.user_id) if entry.user_id else None,
                 resource_type=entry.resource_type,
                 resource_id=str(entry.resource_id) if entry.resource_id else None,
-                audit_id=str(audit_record.id),
+                audit_id=str(audit_id),
             )
 
-            return UUID(audit_record.id)
+            return audit_id
 
         except SQLAlchemyError as e:
-            logger.error("audit_log_failed", error=str(e), action=entry.action.value)
+            action_str = entry.action.value if isinstance(entry.action, AuditAction) else str(entry.action)
+            logger.error("audit_log_failed", error=str(e), action=action_str)
             return None
 
     def log_authentication(
@@ -459,7 +477,7 @@ class RailwayIncidentManager:
     """
     Manage railway safety incidents per EN 50128 / ISO 9001.
 
-    Replaces healthcare BreachManager with railway-appropriate incident tracking.
+    Provides railway incident tracking for EN 50128 compliance.
     """
 
     def __init__(self, db_session: Optional[Session] = None):

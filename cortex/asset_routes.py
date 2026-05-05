@@ -173,12 +173,13 @@ async def create_asset(
         session.add(asset)
         session.commit()
         session.refresh(asset)
+        response = _asset_to_response(asset)
 
     log_audit(
         action=AuditAction.ASSET_CREATE.value,
         user_id=current_user.id,
         resource_type="asset",
-        resource_id=str(asset.id),
+        resource_id=response.id,
         ip_address=get_client_ip(request),
         details={
             "asset_id": req.asset_id,
@@ -187,7 +188,7 @@ async def create_asset(
         },
     )
 
-    return _asset_to_response(asset)
+    return response
 
 
 @router.get("/", response_model=List[AssetResponse])
@@ -228,8 +229,9 @@ async def list_assets(
             query = query.filter(RailwayAsset.is_active == is_active)
 
         results = query.order_by(RailwayAsset.asset_id).offset(offset).limit(limit).all()
+        response = [_asset_to_response(a) for a in results]
 
-    return [_asset_to_response(a) for a in results]
+    return response
 
 
 @router.get("/{asset_uuid}", response_model=AssetTreeResponse)
@@ -261,11 +263,12 @@ async def get_asset(
         sub_assets = session.query(RailwayAsset).filter(
             RailwayAsset.parent_asset_id == asset_uuid
         ).all()
+        response = AssetTreeResponse(
+            asset=_asset_to_response(asset),
+            sub_assets=[_asset_to_response(a) for a in sub_assets],
+        )
 
-    return AssetTreeResponse(
-        asset=_asset_to_response(asset),
-        sub_assets=[_asset_to_response(a) for a in sub_assets],
-    )
+    return response
 
 
 @router.patch("/{asset_uuid}", response_model=AssetResponse)
@@ -319,6 +322,7 @@ async def update_asset(
 
         session.commit()
         session.refresh(asset)
+        response = _asset_to_response(asset)
 
     log_audit(
         action=AuditAction.ASSET_UPDATE.value,
@@ -329,7 +333,7 @@ async def update_asset(
         details={"updated_fields": update.model_dump(exclude_none=True)},
     )
 
-    return _asset_to_response(asset)
+    return response
 
 
 @router.delete("/{asset_uuid}", status_code=status.HTTP_204_NO_CONTENT)
@@ -362,6 +366,7 @@ async def delete_asset(
 
         asset.is_active = False
         session.commit()
+        deleted_asset_id = asset.asset_id
 
     log_audit(
         action=AuditAction.ASSET_DELETE.value,
@@ -369,5 +374,5 @@ async def delete_asset(
         resource_type="asset",
         resource_id=asset_uuid,
         ip_address=get_client_ip(request),
-        details={"asset_id": asset.asset_id},
+        details={"asset_id": deleted_asset_id},
     )

@@ -19,6 +19,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
+from cortex.tqk.tor import ToolOperationalRequirements, TORRequirement, RequirementPriority
+from cortex.deterministic_core import compute_hash
+
 
 class TestCategory(str, Enum):
     """Categories of verification tests"""
@@ -40,6 +43,7 @@ class VerificationTestCase:
     required_equipment: List[str] = field(default_factory=list)
     prerequisites: List[str] = field(default_factory=list)
     estimated_duration_minutes: int = 30
+    _eq_partition: dict = field(default_factory=dict)  # Equivalence partitions from qualifier
 
 
 @dataclass
@@ -401,13 +405,98 @@ class ToolVerificationPlan:
     def get_total_estimated_duration(self) -> int:
         """Get total estimated duration in minutes"""
         return sum(tc.estimated_duration_minutes for tc in self.test_cases)
+
+    def derive_from_tor(self, tor: ToolOperationalRequirements) -> None:
+        """
+        Derive test cases from TOR using equivalence partitioning.
+
+        For each TOR requirement, generates test cases:
+        - One valid-equivalence class case
+        - One invalid-equivalence class case (for MANDATORY requirements)
+        - Boundary-value analysis cases (for IMPORTANT+ requirements)
+        """
+        derived: List[VerificationTestCase] = []
+        test_idx = 1
+
+        method_to_category = {
+            "inspection": TestCategory.INSPECTION,
+            "analysis": TestCategory.ANALYSIS,
+            "test": TestCategory.TEST,
+        }
+
+        cat_prefix = {
+            "inspection": "INS",
+            "analysis": "ANL",
+            "test": "TST",
+        }
+
+        for req in tor.get_all_requirements():
+            category = method_to_category.get(req.verification_method, TestCategory.TEST)
+            prefix = cat_prefix.get(req.verification_method, "TST")
+
+            # Valid equivalence class — always required
+            derived.append(VerificationTestCase(
+                test_id=f"TVP-{prefix}-{test_idx:03d}",
+                tor_req_id=req.req_id,
+                title=f"{req.title} (Valid Equivalence)",
+                category=category,
+                test_procedure=[
+                    f"1. Set up {req.category} test environment",
+                    f"2. Apply valid input per TOR {req.req_id}",
+                    f"3. Measure output against acceptance criteria",
+                    f"4. Record result with hash evidence",
+                ],
+                expected_result=f"Requirement {req.req_id} satisfied",
+                pass_criteria=req.acceptance_criteria,
+                estimated_duration_minutes=30,
+            ))
+            test_idx += 1
+
+            # Invalid equivalence class — MANDATORY requirements
+            if req.priority == RequirementPriority.MANDATORY:
+                derived.append(VerificationTestCase(
+                    test_id=f"TVP-{prefix}-{test_idx:03d}",
+                    tor_req_id=req.req_id,
+                    title=f"{req.title} (Invalid Equivalence)",
+                    category=category,
+                    test_procedure=[
+                        f"1. Set up {req.category} test environment",
+                        f"2. Apply INVALID input (out-of-range, malformed, null)",
+                        f"3. Verify system handles gracefully (no crash)",
+                        f"4. Record error behavior as evidence",
+                    ],
+                    expected_result=f"System rejects invalid input without crash",
+                    pass_criteria="Error handled; no crash; documented in audit log",
+                    estimated_duration_minutes=30,
+                ))
+                test_idx += 1
+
+            # Boundary value — IMPORTANT+ requirements
+            if req.priority in (RequirementPriority.MANDATORY, RequirementPriority.IMPORTANT):
+                derived.append(VerificationTestCase(
+                    test_id=f"TVP-{prefix}-{test_idx:03d}",
+                    tor_req_id=req.req_id,
+                    title=f"{req.title} (Boundary Analysis)",
+                    category=category,
+                    test_procedure=[
+                        f"1. Set up {req.category} boundary test environment",
+                        f"2. Apply min bound input (empty, zero, single char)",
+                        f"3. Apply max bound input (max length, max size, max count)",
+                        f"4. Verify behavior at both boundaries",
+                    ],
+                    expected_result=f"Boundary values handled per {req.sil_level} requirements",
+                    pass_criteria="Min and max boundary values process correctly",
+                    estimated_duration_minutes=45,
+                ))
+                test_idx += 1
+
+        self.test_cases = derived
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "tool_name": self.tool_name,
             "tool_version": self.tool_version,
-            "generated_at": datetime.now().isoformat(),
             "total_test_cases": len(self.test_cases),
             "total_estimated_minutes": self.get_total_estimated_duration(),
             "by_category": {

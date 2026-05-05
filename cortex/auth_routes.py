@@ -528,13 +528,17 @@ async def change_password(
         
         # Hash new password
         new_hash = hash_password(req.new_password)
-        
-        # Update password
+
+        # Invalidate ALL existing sessions for this user
+        # This ensures stolen refresh tokens become useless after password change
         db = get_database_manager()
         with db.get_session() as session:
             user = session.query(User).filter(User.id == current_user.id).first()
             user.password_hash = new_hash
-            
+
+            # Delete all existing sessions (force re-login everywhere)
+            session.query(Session).filter(Session.user_id == current_user.id).delete()
+
             # Audit log
             audit = AuditLog(
                 user_id=user.id,
@@ -542,10 +546,10 @@ async def change_password(
                 resource_type="user",
                 resource_id=user.id,
                 ip_address=get_client_ip(request),
-                details={"user_email": user.email}
+                details={"user_email": user.email, "sessions_revoked": True}
             )
             session.add(audit)
-            
+
             session.commit()
         
         logger.info("password_changed", user_id=str(current_user.id))

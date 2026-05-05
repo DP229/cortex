@@ -149,7 +149,7 @@ class VersionSpec:
     @classmethod
     def current(cls) -> 'VersionSpec':
         """Return current assessed version"""
-        return cls(major=0, minor=0, major=0)  # Overridden per component
+        return cls(major=0, minor=0, patch=0)  # Overridden per component
 
 
 @dataclass

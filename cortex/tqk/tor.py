@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 
+from cortex.deterministic_core import compute_hash, commit, ComplianceResult, ModuleVersion
+
 
 class RequirementPriority(str, Enum):
     """Priority levels for requirements"""
@@ -47,6 +49,18 @@ class TORRequirement:
     verification_method: str  # inspection, analysis, test
     acceptance_criteria: str
     status: RequirementStatus = RequirementStatus.NOT_VERIFIED
+    sil_level: str = "SIL0"
+    evidence_hash: str = ""
+
+    def __post_init__(self):
+        if not self.evidence_hash:
+            self.evidence_hash = compute_hash({
+                "req_id": self.req_id,
+                "category": self.category,
+                "title": self.title,
+                "description": self.description,
+                "sil_level": self.sil_level,
+            })
 
 
 @dataclass
@@ -354,6 +368,40 @@ class ToolOperationalRequirements:
     def get_unverified_requirements(self) -> List[TORRequirement]:
         """Get requirements not yet verified"""
         return [r for r in self.get_all_requirements() if r.status == RequirementStatus.NOT_VERIFIED]
+
+    def get_requirement_by_id(self, req_id: str) -> Optional[TORRequirement]:
+        """Get a single requirement by ID"""
+        for r in self.get_all_requirements():
+            if r.req_id == req_id:
+                return r
+        return None
+
+    def apply_sil_mapping(self, sil_target: str) -> None:
+        """
+        Apply SIL-level mapping to all requirements.
+
+        EN 50128 Annexe B: Higher SIL tools require stricter verification.
+        SIL0: Standard quality requirements
+        SIL1/2: Enhanced verification, automated test evidence
+        SIL3/4: Full formal verification, independent assessment
+
+        Mandatory requirements inherit the target SIL level.
+        Important requirements get one level lower.
+        Desirable requirements default to SIL0.
+        """
+        sil_map = {
+            "SIL4": {"MANDATORY": "SIL4", "IMPORTANT": "SIL3", "DESIRABLE": "SIL2"},
+            "SIL3": {"MANDATORY": "SIL3", "IMPORTANT": "SIL2", "DESIRABLE": "SIL1"},
+            "SIL2": {"MANDATORY": "SIL2", "IMPORTANT": "SIL1", "DESIRABLE": "SIL0"},
+            "SIL1": {"MANDATORY": "SIL1", "IMPORTANT": "SIL0", "DESIRABLE": "SIL0"},
+            "SIL0": {"MANDATORY": "SIL0", "IMPORTANT": "SIL0", "DESIRABLE": "SIL0"},
+        }
+
+        mapping = sil_map.get(sil_target.upper(), sil_map["SIL2"])
+
+        for req in self.get_all_requirements():
+            priority_key = req.priority.name
+            req.sil_level = mapping.get(priority_key, "SIL0")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -362,7 +410,6 @@ class ToolOperationalRequirements:
             "tool_version": self.tool_version,
             "tool_class": self.tool_class,
             "standards": self.standards,
-            "generated_at": datetime.now().isoformat(),
             "requirements": {
                 "operational": [self._req_to_dict(r) for r in self.operational_requirements],
                 "functional": [self._req_to_dict(r) for r in self.functional_requirements],
@@ -383,6 +430,8 @@ class ToolOperationalRequirements:
             "verification_method": req.verification_method,
             "acceptance_criteria": req.acceptance_criteria,
             "status": req.status.value,
+            "sil_level": req.sil_level,
+            "evidence_hash": req.evidence_hash,
         }
     
     def to_markdown(self) -> str:

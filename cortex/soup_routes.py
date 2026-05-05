@@ -186,12 +186,13 @@ async def create_soup(
         session.add(soup)
         session.commit()
         session.refresh(soup)
+        response = _soup_to_response(soup)
 
     log_audit(
         action=AuditAction.SOUP_CREATE.value,
         user_id=current_user.id,
         resource_type="soup",
-        resource_id=str(soup.id),
+        resource_id=response.id,
         ip_address=get_client_ip(request),
         details={
             "name": req.name,
@@ -200,7 +201,7 @@ async def create_soup(
         },
     )
 
-    return _soup_to_response(soup)
+    return response
 
 
 @router.get("/", response_model=List[SoupResponse])
@@ -238,8 +239,9 @@ async def list_soups(
             query = query.filter(SOUP.is_active == is_active)
 
         results = query.order_by(SOUP.name, SOUP.version.desc()).offset(offset).limit(limit).all()
+        response = [_soup_to_response(s) for s in results]
 
-    return [_soup_to_response(s) for s in results]
+    return response
 
 
 @router.get("/{soup_uuid}", response_model=SoupResponse)
@@ -264,8 +266,9 @@ async def get_soup(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"SOUP '{soup_uuid}' not found",
             )
+        response = _soup_to_response(soup)
 
-    return _soup_to_response(soup)
+    return response
 
 
 @router.patch("/{soup_uuid}", response_model=SoupResponse)
@@ -320,6 +323,7 @@ async def update_soup(
 
         session.commit()
         session.refresh(soup)
+        response = _soup_to_response(soup)
 
     log_audit(
         action=AuditAction.SOUP_UPDATE.value,
@@ -330,7 +334,7 @@ async def update_soup(
         details={"updated_fields": update.model_dump(exclude_none=True)},
     )
 
-    return _soup_to_response(soup)
+    return response
 
 
 @router.post("/{soup_uuid}/approve", response_model=SoupResponse)
@@ -377,6 +381,7 @@ async def approve_soup(
         soup.approved_at = datetime.utcnow()
         session.commit()
         session.refresh(soup)
+        response = _soup_to_response(soup)
 
     log_audit(
         action=AuditAction.SOUP_APPROVE.value,
@@ -387,7 +392,7 @@ async def approve_soup(
         details={"comment": body.comment if body else None},
     )
 
-    return _soup_to_response(soup)
+    return response
 
 
 @router.post("/{soup_uuid}/reject", response_model=SoupResponse)
@@ -417,6 +422,7 @@ async def reject_soup(
         soup.status = SoupStatus.REJECTED.value
         session.commit()
         session.refresh(soup)
+        response = _soup_to_response(soup)
 
     log_audit(
         action=AuditAction.SOUP_REJECT.value,
@@ -427,4 +433,4 @@ async def reject_soup(
         details={"reason": body.reason if body else None},
     )
 
-    return _soup_to_response(soup)
+    return response

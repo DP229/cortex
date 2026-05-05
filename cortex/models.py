@@ -267,7 +267,6 @@ class RailwayAsset(UUIDMixin, TimestampMixin, Base):
     metadata_ = Column("metadata", JSON, nullable=True)  # Additional asset-specific data
 
     # Relationships
-    parent = relationship("RailwayAsset", remote_side=[id], backref="sub_assets")
     documents = relationship("Document", back_populates="asset", cascade="all, delete-orphan")
     requirements = relationship("Requirement", back_populates="asset", cascade="all, delete-orphan")
     incidents = relationship("RailwayIncident", back_populates="asset", cascade="all, delete-orphan")
@@ -348,9 +347,8 @@ class Requirement(UUIDMixin, TimestampMixin, Base):
     # Relationships
     asset = relationship("RailwayAsset", back_populates="requirements")
     soup = relationship("SOUP", back_populates="requirements")
-    parent = relationship("Requirement", remote_side=[id], backref="derived_requirements")
     test_records = relationship("TestRecord", back_populates="requirement", cascade="all, delete-orphan")
-    citations = relationship("RequirementCitation", back_populates="requirement", cascade="all, delete-orphan")
+    citations = relationship("RequirementCitation", back_populates="source_req", foreign_keys="RequirementCitation.source_requirement_id", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('idx_req_id', 'requirement_id'),
@@ -605,10 +603,13 @@ def create_all_tables(engine):
 # === Initialize default data ===
 
 def initialize_default_data(session):
-    """Initialize default roles and data for railway compliance"""
+    """Initialize default roles and data for railway compliance (idempotent)"""
     from datetime import timedelta
 
-    # Default roles for EN 50128 / IEC 62443 compliance
+    existing_roles = session.query(Role).count()
+    if existing_roles > 0:
+        return
+
     roles_data = [
         {
             "name": UserRole.ADMIN.value,
@@ -703,6 +704,18 @@ def initialize_default_data(session):
 
     for policy in retention_policies:
         session.add(policy)
+
+    # Create default admin user
+    from cortex.security.encryption import hash_password
+    admin = User(
+        id=str(uuid4()),
+        email="admin@cortex.dev",
+        password_hash=hash_password("AdminPass12!"),
+        full_name_encrypted="Railway Admin",
+        role=UserRole.ADMIN.value,
+        is_active=True,
+    )
+    session.add(admin)
 
     session.commit()
     print("✓ Default data initialized successfully")

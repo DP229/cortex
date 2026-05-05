@@ -268,4 +268,16 @@ def require_permission(permission: str):
         )
         return current_user
 
+
+def get_user_permissions(user) -> set:
+    """Return the set of Permission objects for a user's role."""
+    manager = PermissionManager()
+    if user.role == UserRole.ADMIN.value:
+        permissions = set(manager.get_permissions(UserRole.ADMIN.value))
+        for role in UserRole:
+            permissions.update(manager.get_permissions(role.value))
+        return {Permission(p) for p in permissions}
+    perm_strings = manager.get_permissions(user.role)
+    return {Permission(p) for p in perm_strings}
+
     return permission_checker

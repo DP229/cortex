@@ -192,12 +192,13 @@ async def create_test_record(
         session.add(test_record)
         session.commit()
         session.refresh(test_record)
+        response = _test_to_response(test_record)
 
     log_audit(
         action=AuditAction.TEST_RECORD_CREATE.value,
         user_id=current_user.id,
         resource_type="test_record",
-        resource_id=str(test_record.id),
+        resource_id=response.id,
         ip_address=get_client_ip(request),
         details={
             "test_id": req.test_id,
@@ -206,7 +207,7 @@ async def create_test_record(
         },
     )
 
-    return _test_to_response(test_record)
+    return response
 
 
 @router.get("/", response_model=List[TestRecordResponse])
@@ -247,8 +248,9 @@ async def list_test_records(
             query = query.filter(TestRecord.is_closed == is_closed)
 
         results = query.order_by(TestRecord.test_id).offset(offset).limit(limit).all()
+        response = [_test_to_response(t) for t in results]
 
-    return [_test_to_response(t) for t in results]
+    return response
 
 
 @router.get("/{test_uuid}", response_model=TestRecordResponse)
@@ -275,8 +277,9 @@ async def get_test_record(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Test record '{test_uuid}' not found",
             )
+        response = _test_to_response(test_record)
 
-    return _test_to_response(test_record)
+    return response
 
 
 @router.patch("/{test_uuid}", response_model=TestRecordResponse)
@@ -326,6 +329,7 @@ async def update_test_record(
 
         session.commit()
         session.refresh(test_record)
+        response = _test_to_response(test_record)
 
     log_audit(
         action=AuditAction.TEST_RECORD_UPDATE.value,
@@ -336,7 +340,7 @@ async def update_test_record(
         details={"updated_fields": update.model_dump(exclude_none=True)},
     )
 
-    return _test_to_response(test_record)
+    return response
 
 
 @router.post("/{test_uuid}/execute", response_model=TestRecordResponse)
@@ -414,6 +418,8 @@ async def execute_test_record(
                 requirement.verification_status = new_verification_status
                 session.commit()
 
+            response = _test_to_response(test_record)
+
     log_audit(
         action=AuditAction.TEST_EXECUTE.value,
         user_id=current_user.id,
@@ -421,14 +427,14 @@ async def execute_test_record(
         resource_id=test_uuid,
         ip_address=get_client_ip(request),
         details={
-            "test_id": test_record.test_id,
+            "test_id": response.test_id,
             "status": execution.status,
             "passed": execution.passed_count,
             "failed": execution.failed_count,
         },
     )
 
-    return _test_to_response(test_record)
+    return response
 
 
 @router.get("/requirement/{requirement_uuid}/verification-status", response_model=RequirementVerificationStatus)
@@ -463,17 +469,19 @@ async def get_requirement_verification_status(
             TestRecord.requirement_id == requirement_uuid
         ).all()
 
-    passed = sum(1 for t in tests if t.status == VerificationStatus.PASSED.value)
-    failed = sum(1 for t in tests if t.status == VerificationStatus.FAILED.value)
-    pending = sum(1 for t in tests if t.status == VerificationStatus.PENDING.value)
-    blocked = sum(1 for t in tests if t.status == VerificationStatus.BLOCKED.value)
+        passed = sum(1 for t in tests if t.status == VerificationStatus.PASSED.value)
+        failed = sum(1 for t in tests if t.status == VerificationStatus.FAILED.value)
+        pending = sum(1 for t in tests if t.status == VerificationStatus.PENDING.value)
+        blocked = sum(1 for t in tests if t.status == VerificationStatus.BLOCKED.value)
 
-    return RequirementVerificationStatus(
-        requirement_id=str(requirement.id),
-        verification_status=str(requirement.verification_status),
-        total_tests=len(tests),
-        passed_tests=passed,
-        failed_tests=failed,
-        pending_tests=pending,
-        blocked_tests=blocked,
-    )
+        response = RequirementVerificationStatus(
+            requirement_id=str(requirement.id),
+            verification_status=str(requirement.verification_status),
+            total_tests=len(tests),
+            passed_tests=passed,
+            failed_tests=failed,
+            pending_tests=pending,
+            blocked_tests=blocked,
+        )
+
+    return response

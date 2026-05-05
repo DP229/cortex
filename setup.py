@@ -24,13 +24,25 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    python_requires=">=3.10,<3.14",
+    python_requires=">=3.10,<3.15",
     install_requires=[
         "fastapi>=0.104.0",
         "uvicorn[standard]>=0.24.0",
         "pydantic>=2.5.0",
         "pyyaml>=6.0",
         "nest-asyncio>=1.5.0",
+        # Security & Encryption
+        "cryptography>=41.0.0",
+        "argon2-cffi>=23.1.0",
+        # JWT Authentication
+        "python-jose[cryptography]>=3.3.0",
+        "passlib[bcrypt]>=1.7.4",
+        "python-multipart>=0.0.6",
+        # Logging & Monitoring
+        "structlog>=23.2.0",
+        "prometheus-client>=0.19.0",
+        # Scheduling
+        "apscheduler>=3.10.0",
     ],
     extras_require={
         "dev": [

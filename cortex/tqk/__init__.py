@@ -1,23 +1,14 @@
 """
-Cortex Tool Qualification Kit (TQK) - IEC 62304 / EN 50128 Compliance
+Cortex Tool Qualification Kit (TQK) - EN 50128 / EN 50716 Compliance
 
-Phase 4 Enhancement: Documentation and procedures for qualifying Cortex
-as a Tool Class 2 (T2) verification asset in safety-critical workflows.
-
-IEC 62304 (Medical Device Software) Classification:
-- Tool Class 1: Tools that don't affect software output
-- Tool Class 2 (T2): Tools that generate output affecting safety
-- Tool Class 3 (T3): Tools whose failure could cause hazard
-
-EN 50128 (Railway) Classification:
-- Similar T2 classification for tools used in SIL 0-4 development
+Tool Class 2 (T2) self-qualification engine for Cortex.
 
 This module provides:
-- Tool Operational Requirements (TOR)
-- Tool Verification Plans (TVP)
-- Tool Verification Procedures (TVC)
-- Tool Verification Results (TVR) generation
-- Automated test scripts for qualification
+- Tool Operational Requirements (TOR) with SIL mapping
+- Tool Verification Plans (TVP) with equivalence partitioning
+- Tool Verification Results (TVR) with HMAC signing
+- T2 Qualification Engine (self-qualifying)
+- T2 Evidence Package (signed regulatory evidence)
 - SOUP (Software of Unknown Provenance) management
 """
 
@@ -42,7 +33,18 @@ from cortex.tqk.soup import (
     SOUPManagement,
     SOUPComponent,
     SOUPCategory,
-    SILLevel,
+    IEC62304Class,
+)
+from cortex.tqk.t2_qualifier import (
+    QualificationEngine,
+    T2EvidencePackage,
+    QualificationRun,
+)
+from cortex.tqk.t2_evidence import (
+    EvidenceCollector,
+    SignedT2Evidence,
+    T2EvidenceManifest,
+    EvidenceFile,
 )
 
 __all__ = [
@@ -64,5 +66,14 @@ __all__ = [
     "SOUPManagement",
     "SOUPComponent",
     "SOUPCategory",
-    "SILLevel",
+    "IEC62304Class",
+    # T2 Qualifier
+    "QualificationEngine",
+    "T2EvidencePackage",
+    "QualificationRun",
+    # T2 Evidence
+    "EvidenceCollector",
+    "SignedT2Evidence",
+    "T2EvidenceManifest",
+    "EvidenceFile",
 ]

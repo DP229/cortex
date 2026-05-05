@@ -23,6 +23,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import logging
 
+from cortex.deterministic_core import compute_hash, commit, verify as verify_hash, ComplianceResult, ModuleVersion
+from cortex.contracts import behavioral_contract
+
 logger = logging.getLogger(__name__)
 
 
@@ -535,7 +538,21 @@ class DeterministicQuoter:
         # Initialize components
         self._extractor = CitationExtractor()
         self._normalizer = TextNormalizer()
+        
+        # T2 Hash-Commit cache: query_hash -> ComplianceResult
+        self._commit_cache: Dict[str, ComplianceResult] = {}
+        self.MODULE = "cortex.deterministic"
+        self.VERSION = ModuleVersion(major=1, minor=1, patch=0)
     
+    @behavioral_contract(
+        pre=lambda self, llm_output, max_sources=10, safety_class="unknown": bool(llm_output) and len(llm_output) > 0,
+        post=lambda self, llm_output, max_sources=10, safety_class="unknown", _return=None: _return is not None,
+        invariants=[
+            lambda r: 0.0 <= r.verification_score <= 1.0,
+            lambda r: isinstance(r.is_compliant, bool),
+            lambda r: isinstance(r.citations, list),
+        ],
+    )
     def validate(
         self,
         llm_output: str,
@@ -602,6 +619,68 @@ class DeterministicQuoter:
             }
         )
     
+    @behavioral_contract(
+        pre=lambda self, llm_output, max_sources=10, safety_class="unknown": bool(llm_output),
+        invariants=[
+            lambda r: r[0] is not None and r[1] is not None,
+            lambda r: isinstance(r[1], ComplianceResult),
+            lambda r: bool(r[1].output_hash),
+        ],
+    )
+    def validate_with_commit(
+        self,
+        llm_output: str,
+        max_sources: int = 10,
+        safety_class: str = "unknown",
+    ) -> Tuple[ValidatedOutput, ComplianceResult]:
+        """Validate and produce a hash-committed ComplianceResult"""
+        result = self.validate(llm_output, max_sources, safety_class)
+        query_hash = compute_hash(llm_output)
+        compliance_result = commit(
+            output=result,
+            module=self.MODULE,
+            version=self.VERSION,
+            input_value=llm_output,
+            metadata={
+                "safety_class": safety_class,
+                "verification_score": result.verification_score,
+                "is_compliant": result.is_compliant,
+            },
+        )
+        self._commit_cache[query_hash] = compliance_result
+        return result, compliance_result
+
+    def reproduce(self, query_hash: str) -> Tuple[Optional[ComplianceResult], bool]:
+        """Reproduce a previously committed result from its input hash.
+
+        Returns:
+            (compliance_result, reproduced_successfully)
+        """
+        if query_hash not in self._commit_cache:
+            logger.warning("reproduce_miss", extra={"query_hash": query_hash[:16]})
+            return None, False
+
+        original = self._commit_cache[query_hash]
+        try:
+            from cortex.deterministic_core import compute_hash, verify as verify_hash_core
+            actual = compute_hash(original.output)
+            ok = verify_hash_core(original)
+            if not ok:
+                logger.warning(
+                    "reproduce_hash_mismatch",
+                    extra={"module": self.MODULE, "expected": original.output_hash[:16], "actual": actual[:16]},
+                )
+            return original, ok
+        except Exception as exc:
+            logger.error("reproduce_error", extra={"query_hash": query_hash[:16], "error": str(exc)})
+            return original, False
+
+    def commit_cache_size(self) -> int:
+        return len(self._commit_cache)
+
+    def clear_commit_cache(self) -> None:
+        self._commit_cache.clear()
+
     def _verify_citation(
         self,
         source_ref: str,

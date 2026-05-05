@@ -1,14 +1,21 @@
 """
 Cortex Decision Reproducibility Package (DRP)
 
-FDA 21 CFR Part 11 / IEC 62304 / EU AI Act Article 9 Compliant
+FDA 21 CFR Part 11 / IEC 62304 / EN 50716 Annex D / EU AI Act Article 9 Compliant
 Audit Trail Generator for AI-Assisted Decisions
+
+EN 50716 Annex D requires AI tool evidence:
+- AI system version (semantic + commit hash)
+- Training data hash (SHA-256 of corpus)
+- Data provenance (source, collection date, preprocessing version)
+- Model card fields (architecture, training methodology, evaluation metrics)
 
 Every compliance-critical AI query produces a signed, timestamped audit
 package containing all inputs, outputs, and metadata required for:
 - Regulatory audit trails
 - FDA submissions
 - IEC 62304 records
+- EN 50716 Annex D accountability records
 - EU AI Act Article 9 accountability records
 
 DRP Structure:
@@ -49,6 +56,9 @@ import logging
 import threading
 import gzip
 import shutil
+
+from cortex.deterministic_core import compute_hash, ComplianceResult, ModuleVersion
+from cortex.contracts import behavioral_contract
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +232,66 @@ class DRPSignature:
     key_id: str
     signed_at: str  # ISO 8601
     algorithm: str = "HMAC-SHA256"
+
+
+@dataclass
+class EN50716AnnexDMetadata:
+    """
+    EN 50716 Annex D metadata for AI-based tools used in railway safety.
+
+    Required evidence fields:
+    - ai_system_version: Semantic version + git hash of the AI component
+    - training_data_hash: SHA-256 of the training corpus
+    - data_provenance: Source institution, collection date range, preprocessing version
+    - model_architecture: Type of model (transformer, RNN, ensemble)
+    - training_methodology: Training approach (supervised, RLHF, fine-tuning)
+    - evaluation_metrics: Key metrics from model card (accuracy, F1, BLEU, etc.)
+    - dataset_split_ratio: train/val/test proportions
+    - bias_assessment: Results of fairness/bias testing
+    - limitations: Known failure modes and edge cases
+    """
+    ai_system_version: str
+    ai_commit_hash: str
+    training_data_hash: str
+    data_provenance: str
+    data_collection_start: str  # ISO 8601 date
+    data_collection_end: str
+    preprocessing_version: str
+    model_architecture: str
+    training_methodology: str
+    evaluation_metrics: Dict[str, Any] = field(default_factory=dict)
+    dataset_split_ratio: str = "80/10/10"
+    bias_assessment: Optional[str] = None
+    limitations: str = ""
+    compliance_standards: List[str] = field(default_factory=lambda: ["EN_50716_Annex_D"])
+    evidence_hash: str = ""
+
+    def __post_init__(self):
+        if not self.evidence_hash:
+            core_fields = {
+                k: v for k, v in asdict(self).items()
+                if k not in ("evidence_hash",)
+            }
+            self.evidence_hash = compute_hash(core_fields)
+
+    def to_evidence(self) -> dict:
+        return {
+            "ai_system_version": self.ai_system_version,
+            "ai_commit_hash": self.ai_commit_hash,
+            "training_data_hash": self.training_data_hash,
+            "data_provenance": self.data_provenance,
+            "data_collection_start": self.data_collection_start,
+            "data_collection_end": self.data_collection_end,
+            "preprocessing_version": self.preprocessing_version,
+            "model_architecture": self.model_architecture,
+            "training_methodology": self.training_methodology,
+            "evaluation_metrics": self.evaluation_metrics,
+            "dataset_split_ratio": self.dataset_split_ratio,
+            "bias_assessment": self.bias_assessment,
+            "limitations": self.limitations,
+            "compliance_standards": self.compliance_standards,
+            "evidence_hash": self.evidence_hash,
+        }
 
 
 # =============================================================================

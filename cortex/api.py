@@ -30,6 +30,7 @@ from cortex.asset_routes import router as asset_router
 from cortex.requirements_routes import router as requirements_router
 from cortex.soup_routes import router as soup_router
 from cortex.test_routes import router as test_router
+from cortex.qualification_routes import router as qualification_router
 
 logger = structlog.get_logger()
 
@@ -122,6 +123,7 @@ app.include_router(asset_router)
 app.include_router(requirements_router)
 app.include_router(soup_router)
 app.include_router(test_router)
+app.include_router(qualification_router)
 
 
 # === Root Endpoint ===

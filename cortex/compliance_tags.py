@@ -178,6 +178,118 @@ class ComplianceReference:
 
 
 @dataclass
+class T2TraceTag:
+    """A T2 tool qualification trace tag"""
+    tag_id: str
+    tool: str = ""
+    operation: str = ""
+    evidence_hash: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "tag_id": self.tag_id,
+            "tool": self.tool,
+            "operation": self.operation,
+            "evidence_hash": self.evidence_hash,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class RailPhaseTag:
+    """A railway lifecycle phase tag"""
+    phase: str
+    sil: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "phase": self.phase,
+            "sil": self.sil,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class ToolClassTag:
+    """A tool class declaration tag"""
+    tool_class: str  # T1, T2, T3
+    standard: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "tool_class": self.tool_class,
+            "standard": self.standard,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class DataProvenanceTag:
+    """Data provenance tag per EN 50716"""
+    source: str
+    collected: str = ""
+    preprocessing: str = ""
+    data_hash: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "source": self.source,
+            "collected": self.collected,
+            "preprocessing": self.preprocessing,
+            "data_hash": self.data_hash,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class DesignRefTag:
+    """Design reference tag linking design to requirement"""
+    design_id: str
+    implements_req: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "design_id": self.design_id,
+            "implements_req": self.implements_req,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class CodeRefTag:
+    """Code reference tag linking code to design"""
+    code_id: str
+    implements_design: str = ""
+    file: str = ""
+    line_number: int = 0
+    file_path: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "code_id": self.code_id,
+            "implements_design": self.implements_design,
+            "file": self.file,
+            "line_number": self.line_number,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
 class ParsedDocument:
     """A document with all parsed compliance tags"""
     path: str
@@ -186,6 +298,12 @@ class ParsedDocument:
     test_cases: List[TestCaseTag] = field(default_factory=list)
     trace_links: List[TraceLink] = field(default_factory=list)
     compliance_refs: List[ComplianceReference] = field(default_factory=list)
+    t2_traces: List[T2TraceTag] = field(default_factory=list)
+    rail_phases: List[RailPhaseTag] = field(default_factory=list)
+    tool_classes: List[ToolClassTag] = field(default_factory=list)
+    data_provenances: List[DataProvenanceTag] = field(default_factory=list)
+    design_refs: List[DesignRefTag] = field(default_factory=list)
+    code_refs: List[CodeRefTag] = field(default_factory=list)
     raw_content: str = ""
     
     def get_coverage(self) -> Dict[str, Any]:
@@ -261,6 +379,47 @@ class ComplianceTagParser:
             r'<risk\s+level="([^"]+)"[^>]*/?>',
             re.IGNORECASE
         ),
+        't2_trace': re.compile(
+            r'<t2_trace\s+id="([^"]+)"[^>]*>'
+            r'(?:tool="([^"]+)")?\s*'
+            r'(?:operation="([^"]+)")?\s*'
+            r'(?:evidence_hash="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
+        'rail_phase': re.compile(
+            r'<rail_phase\s+phase="([^"]+)"[^>]*>'
+            r'(?:sil="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
+        'tcl': re.compile(
+            r'<tcl\s+class="(T[123])"[^>]*>'
+            r'(?:standard="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
+        'data_provenance': re.compile(
+            r'<data_provenance\s+source="([^"]+)"[^>]*>'
+            r'(?:collected="([^"]+)")?\s*'
+            r'(?:preprocessing="([^"]+)")?\s*'
+            r'(?:hash="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
+        'design_ref': re.compile(
+            r'<design_ref\s+id="([^"]+)"[^>]*>'
+            r'(?:implements_req="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
+        'code_ref': re.compile(
+            r'<code_ref\s+id="([^"]+)"[^>]*>'
+            r'(?:implements_design="([^"]+)")?\s*'
+            r'(?:file="([^"]+)")?\s*'
+            r'/>',
+            re.IGNORECASE
+        ),
     }
     
     def __init__(self):
@@ -281,37 +440,58 @@ class ComplianceTagParser:
         test_cases = []
         trace_links = []
         compliance_refs = []
-        
+        t2_traces = []
+        rail_phases = []
+        tool_classes = []
+        data_provenances = []
+        design_refs = []
+        code_refs = []
+
         for i, line in enumerate(lines, 1):
             self.current_line = i
-            
-            # Parse requirements
+
             for match in self.PATTERNS['requirement'].finditer(line):
                 req = self._parse_requirement(match)
-                if req:
-                    requirements.append(req)
-            
-            # Parse test cases
+                if req: requirements.append(req)
+
             for match in self.PATTERNS['test'].finditer(line):
                 test = self._parse_test(match)
-                if test:
-                    test_cases.append(test)
-            
-            # Parse trace links
+                if test: test_cases.append(test)
+
             for match in self.PATTERNS['trace'].finditer(line):
                 trace = self._parse_trace(match)
-                if trace:
-                    trace_links.append(trace)
-            
-            # Parse compliance references
+                if trace: trace_links.append(trace)
+
             for match in self.PATTERNS['compliance'].finditer(line):
                 ref = self._parse_compliance(match)
-                if ref:
-                    compliance_refs.append(ref)
-        
-        # Extract title
+                if ref: compliance_refs.append(ref)
+
+            for match in self.PATTERNS['t2_trace'].finditer(line):
+                tag = self._parse_t2_trace(match)
+                if tag: t2_traces.append(tag)
+
+            for match in self.PATTERNS['rail_phase'].finditer(line):
+                tag = self._parse_rail_phase(match)
+                if tag: rail_phases.append(tag)
+
+            for match in self.PATTERNS['tcl'].finditer(line):
+                tag = self._parse_tcl(match)
+                if tag: tool_classes.append(tag)
+
+            for match in self.PATTERNS['data_provenance'].finditer(line):
+                tag = self._parse_data_provenance(match)
+                if tag: data_provenances.append(tag)
+
+            for match in self.PATTERNS['design_ref'].finditer(line):
+                tag = self._parse_design_ref(match)
+                if tag: design_refs.append(tag)
+
+            for match in self.PATTERNS['code_ref'].finditer(line):
+                tag = self._parse_code_ref(match)
+                if tag: code_refs.append(tag)
+
         title = self._extract_title(content)
-        
+
         return ParsedDocument(
             path=path,
             title=title,
@@ -319,6 +499,12 @@ class ComplianceTagParser:
             test_cases=test_cases,
             trace_links=trace_links,
             compliance_refs=compliance_refs,
+            t2_traces=t2_traces,
+            rail_phases=rail_phases,
+            tool_classes=tool_classes,
+            data_provenances=data_provenances,
+            design_refs=design_refs,
+            code_refs=code_refs,
             raw_content=content,
         )
     
@@ -416,6 +602,83 @@ class ComplianceTagParser:
             logger.warning(f"Failed to parse compliance ref at {self.current_file}:{self.current_line}: {e}")
             return None
     
+    def _parse_t2_trace(self, match: re.Match) -> Optional[T2TraceTag]:
+        try:
+            return T2TraceTag(
+                tag_id=match.group(1),
+                tool=match.group(2) or "",
+                operation=match.group(3) or "",
+                evidence_hash=match.group(4) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("t2_trace_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
+    def _parse_rail_phase(self, match: re.Match) -> Optional[RailPhaseTag]:
+        try:
+            return RailPhaseTag(
+                phase=match.group(1),
+                sil=match.group(2) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("rail_phase_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
+    def _parse_tcl(self, match: re.Match) -> Optional[ToolClassTag]:
+        try:
+            return ToolClassTag(
+                tool_class=match.group(1),
+                standard=match.group(2) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("tcl_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
+    def _parse_data_provenance(self, match: re.Match) -> Optional[DataProvenanceTag]:
+        try:
+            return DataProvenanceTag(
+                source=match.group(1),
+                collected=match.group(2) or "",
+                preprocessing=match.group(3) or "",
+                data_hash=match.group(4) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("data_provenance_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
+    def _parse_design_ref(self, match: re.Match) -> Optional[DesignRefTag]:
+        try:
+            return DesignRefTag(
+                design_id=match.group(1),
+                implements_req=match.group(2) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("design_ref_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
+    def _parse_code_ref(self, match: re.Match) -> Optional[CodeRefTag]:
+        try:
+            return CodeRefTag(
+                code_id=match.group(1),
+                implements_design=match.group(2) or "",
+                file=match.group(3) or "",
+                line_number=self.current_line,
+                file_path=self.current_file,
+            )
+        except Exception as e:
+            logger.warning("code_ref_parse_failed", extra={"file": self.current_file, "line": self.current_line, "error": str(e)})
+            return None
+
     def _extract_title(self, content: str) -> str:
         """Extract title from first heading"""
         match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
