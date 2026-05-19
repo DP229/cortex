@@ -1,0 +1,87 @@
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+
+Parameters
+Licensor: Duragappa Amarappa
+Licensed Work: Cortex
+Additional Use Grant: You may use the Licensed Work strictly for internal testing, evaluation, and non-commercial development. Any production use, commercial deployment, or use in a commercial network service is strictly prohibited without prior written approval and a separate commercial license agreement from the Licensor.
+Change Date: May 7, 2030
+Change License: Version 2.0 of the Apache License
+
+The contents of this file are subject to the terms and conditions of the Business Source License 1.1 ("License"). You may not use this file except in compliance with the License. You can obtain a copy of the License at https://mariadb.com/bsl11/.
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. Refer to the License for the specific language governing permissions and limitations under the License.
+
+================================================================================
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+================================================================================
+
+This License is effective until the Change Date set forth above or upon
+your acceptance of the Apache License, Version 2.0 terms.
+
+On the Change Date, theLicensed Work shall, where permitted by applicable
+law, be automatically licensed to you under the Apache License, Version 2.0,
+subject to the terms and conditions of the Apache License, Version 2.0.
+
+================================================================================
+
+Additional Use Grant: You may make use of the Licensed Work, provided
+that you do not use it in connection with any commercial hosting, deployment,
+or service that provides AI-powered compliance management to third parties
+as a service, nor in any production environment where the Licensed Work
+would be used to manage safety-critical railway software systems for
+commercial purposes. For clarity, use of the Licensed Work for internal
+testing, evaluation, development, and non-commercial purposes is permitted.
+
+================================================================================
+
+THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE LICENSED WORK
+OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
+
+================================================================================
+
+Redistribution and use of the Licensed Work in source and binary forms,
+with or without modification, are permitted provided that the following
+conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice
+   and this entire permission in the form of the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice
+   and this entire permission in the documentation and/or other materials
+   provided with the distribution.
+
+3. The name "Cortex" or any derivative thereof may not be used to endorse
+   or promote products derived from this software without prior written
+   permission from the Licensor.
+
+================================================================================
+
+For purposes of this License, "Cortex" means the software known as Cortex,
+as originally distributed by the Licensor, and any subsequent versions
+thereof that are subject to this License.
+
+If you have questions about this License, please contact:
+
+    Duragappa Amarappa
