@@ -469,3 +469,47 @@ async def close_incident(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to close incident",
         )
+
+
+@router.get("/incidents", response_model=List[dict])
+async def list_incidents(
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    severity: Optional[str] = Query(default=None),
+    incident_type: Optional[str] = Query(default=None),
+    asset_id: Optional[str] = Query(default=None),
+    limit: int = Query(default=100, le=500),
+):
+    user_permissions = get_user_permissions(current_user)
+    if Permission.INCIDENT_CREATE not in user_permissions and Permission.AUDIT_READ not in user_permissions:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission required")
+
+    try:
+        from cortex.database import get_database_manager
+        from cortex.models import RailwayIncident
+        db = get_database_manager()
+        with db.get_session() as session:
+            query = session.query(RailwayIncident)
+            if status_filter:
+                query = query.filter(RailwayIncident.status == status_filter)
+            if severity:
+                query = query.filter(RailwayIncident.severity == severity)
+            if incident_type:
+                query = query.filter(RailwayIncident.incident_type == incident_type)
+            if asset_id:
+                query = query.filter(RailwayIncident.asset_id == asset_id)
+            results = query.order_by(RailwayIncident.detected_at.desc()).limit(limit).all()
+            return [{
+                "id": str(r.id), "incident_id": r.incident_id, "title": r.description[:80] if r.description else r.incident_id,
+                "incident_type": r.incident_type, "severity": r.severity, "status": r.status,
+                "description": r.description, "asset_id": str(r.asset_id) if r.asset_id else None,
+                "detected_at": r.detected_at.isoformat() if r.detected_at else None,
+                "is_safety_critical": r.is_safety_critical, "is_reportable": r.is_reportable,
+                "root_cause": r.root_cause, "mitigation_steps": r.mitigation_steps,
+                "closed_at": r.closed_at.isoformat() if r.closed_at else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            } for r in results]
+    except Exception as e:
+        logger.error("list_incidents_error", error=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to list incidents")

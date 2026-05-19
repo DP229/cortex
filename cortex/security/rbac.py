@@ -64,6 +64,12 @@ class Permission(str, Enum):
     # DRP permissions
     DRP_GENERATE = "drp:generate"
 
+    # ELM / IBM Engineering Lifecycle Management permissions
+    ELM_READ = "elm:read"
+    ELM_WRITE = "elm:write"
+    ELM_APPROVE = "elm:approve"
+    ELM_ADMIN = "elm:admin"
+
     # User/Admin permissions
     USER_READ = "user:read"
     USER_WRITE = "user:write"
@@ -96,6 +102,7 @@ ROLE_PERMISSIONS: Dict[str, Set[Permission]] = {
         Permission.INCIDENT_READ, Permission.INCIDENT_WRITE, Permission.INCIDENT_CREATE,
         Permission.AUDIT_READ, Permission.AUDIT_EXPORT,
         Permission.DRP_GENERATE,
+        Permission.ELM_READ, Permission.ELM_WRITE, Permission.ELM_APPROVE, Permission.ELM_ADMIN,
         Permission.USER_READ, Permission.USER_WRITE, Permission.USER_DELETE, Permission.ROLE_MANAGE,
         Permission.COMPLIANCE_READ, Permission.COMPLIANCE_WRITE,
     },
@@ -111,6 +118,7 @@ ROLE_PERMISSIONS: Dict[str, Set[Permission]] = {
         Permission.AUDIT_READ,
         Permission.DRP_GENERATE,
         Permission.COMPLIANCE_READ,
+        Permission.ELM_READ, Permission.ELM_WRITE, Permission.ELM_APPROVE,
     },
 
     # REQUIREMENTS_ENGINEER — authors and traces EN 50128 requirements
@@ -120,6 +128,7 @@ ROLE_PERMISSIONS: Dict[str, Set[Permission]] = {
         Permission.SOUP_READ,
         Permission.DOCUMENT_READ,
         Permission.AUDIT_READ,
+        Permission.ELM_READ,
     },
 
     # TEST_ENGINEER — executes verification (EN 50128 Table A.3)

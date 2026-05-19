@@ -24,6 +24,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+from cortex.ibm_elm.config import ELMConfig, ReqIFAttributeMapping
+
+
 @dataclass
 class WikiConfig:
     """Wiki directory configuration"""
@@ -128,6 +131,7 @@ class CortexConfig:
     ingest: IngestConfig = field(default_factory=IngestConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
+    elm: ELMConfig = field(default_factory=ELMConfig)
     _config_path: Optional[str] = None
 
     @classmethod
@@ -145,12 +149,17 @@ class CortexConfig:
         with open(config_path, "r") as f:
             data = yaml.safe_load(f) or {}
 
+        # Deserialize ELM config with nested dataclasses
+        elm_data = data.get("elm", {})
+        elm_config = ELMConfig.from_dict(elm_data) if elm_data else ELMConfig()
+
         config = cls(
             wiki=WikiConfig(**data.get("wiki", {})),
             llm=LLMConfig(**data.get("llm", {})),
             ingest=IngestConfig(**data.get("ingest", {})),
             security=SecurityConfig(**data.get("security", {})),
             railway=RailwayConfig(**data.get("railway", {})),
+            elm=elm_config,
         )
         config._config_path = config_path
         return config
@@ -168,6 +177,7 @@ class CortexConfig:
             "ingest": asdict(self.ingest),
             "security": asdict(self.security),
             "railway": asdict(self.railway),
+            "elm": self.elm.to_dict(),
         }
 
         with open(self._config_path, "w") as f:

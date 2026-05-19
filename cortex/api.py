@@ -31,6 +31,8 @@ from cortex.requirements_routes import router as requirements_router
 from cortex.soup_routes import router as soup_router
 from cortex.test_routes import router as test_router
 from cortex.qualification_routes import router as qualification_router
+from cortex.kb_routes import router as kb_router
+from cortex.ibm_elm.routes import router as elm_router
 
 logger = structlog.get_logger()
 
@@ -124,6 +126,8 @@ app.include_router(requirements_router)
 app.include_router(soup_router)
 app.include_router(test_router)
 app.include_router(qualification_router)
+app.include_router(kb_router)
+app.include_router(elm_router)
 
 
 # === Root Endpoint ===

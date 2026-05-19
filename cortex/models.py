@@ -156,6 +156,21 @@ class SoupStatus(str, enum.Enum):
     UNDER_EVALUATION = "under_evaluation"
 
 
+class RequirementType(str, enum.Enum):
+    """INCOSE requirement type per ISO/IEC/IEEE 29148:2018 §6.1.2"""
+    FUNCTIONAL = "functional"
+    PERFORMANCE = "performance"
+    INTERFACE = "interface"
+    DESIGN_CONSTRAINT = "design_constraint"
+    SECURITY = "security"
+    SAFETY = "safety"
+    USABILITY = "usability"
+    MAINTAINABILITY = "maintainability"
+    REGULATORY = "regulatory"
+    ENVIRONMENTAL = "environmental"
+    OTHER = "other"
+
+
 # === Base Mixins ===
 
 class TimestampMixin:
@@ -322,17 +337,26 @@ class SOUP(UUIDMixin, TimestampMixin, Base):
 # === Requirements Management (EN 50128) ===
 
 class Requirement(UUIDMixin, TimestampMixin, Base):
-    """Software requirement with EN 50128 traceability"""
+    """Software requirement with INCOSE & EN 50128 traceability"""
     __tablename__ = "requirements"
 
     requirement_id = Column(String(50), unique=True, nullable=False, index=True)  # e.g., "REQ-SIG-001"
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
+    rationale = Column(Text, nullable=True)  # INCOSE / ISO 29148 — why this requirement exists
+    requirement_type = Column(String(20), nullable=True, index=True)  # INCOSE: functional, performance, interface, etc.
     priority = Column(String(10), default=RequirementPriority.SHALL.value, nullable=False)
     status = Column(String(20), default=RequirementStatus.DRAFT.value, nullable=False)
     safety_class = Column(String(10), default=SafetyClass.CLASS_B.value, nullable=False)  # IEC 62304
     sil_level = Column(String(10), default=SILLevel.SIL2.value, nullable=False)  # EN 50128
     category = Column(String(50), nullable=True)  # "functional", "safety", "security", "performance"
+    source = Column(String(255), nullable=True)  # INCOSE — origin: stakeholder, regulation clause, derived-from
+    compliance_ref = Column(String(255), nullable=True)  # Formal standard clause ref, e.g. "EN 50128 §5.2.3"
+    stakeholder = Column(String(100), nullable=True)  # INCOSE — who needs this requirement
+    acceptance_criteria = Column(Text, nullable=True)  # INCOSE — pass/fail conditions
+    allocation = Column(String(255), nullable=True)  # INCOSE — subsystem/component allocation
+    version = Column(Integer, default=1, nullable=False)  # INCOSE / EN 50128 §5.2 — requirement version
+    change_history = Column(JSON, nullable=True)  # Audit trail: [{version, who, what, when}]
     asset_id = Column(String(36), ForeignKey("railway_assets.id"), nullable=True)
     soup_id = Column(String(36), ForeignKey("soups.id"), nullable=True)  # If derived from SOUP
     parent_requirement_id = Column(String(36), ForeignKey("requirements.id"), nullable=True)
@@ -563,6 +587,33 @@ class RetentionSchedule(UUIDMixin, TimestampMixin, Base):
     )
 
 
+# === Knowledge Base ===
+
+class KnowledgeArticle(UUIDMixin, TimestampMixin, Base):
+    """Knowledge base article for railway safety standards and domain expertise"""
+    __tablename__ = "knowledge_articles"
+
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    tags = Column(JSON, nullable=True)
+    status = Column(String(20), default="published", nullable=False)
+    source = Column(String(255), nullable=True)
+    references = Column(JSON, nullable=True)
+    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    approved_by = Column(String(36), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index('idx_kb_title', 'title'),
+        Index('idx_kb_category', 'category'),
+        Index('idx_kb_status', 'status'),
+    )
+
+    def __repr__(self):
+        return f"<KnowledgeArticle {self.title[:40]}>"
+
+
 # === Audit Logging (Merkle tree verifiable — EN 50128) ===
 
 class AuditLog(UUIDMixin, Base):
@@ -590,6 +641,82 @@ class AuditLog(UUIDMixin, Base):
 
     def __repr__(self):
         return f"<AuditLog {self.action} by {self.user_id} at {self.timestamp}>"
+
+
+# === ELM Sync Job (Approval Queue for IBM ELM Writeback) ===
+
+class ELMSyncJobStatus(str, enum.Enum):
+    """ELM sync job lifecycle status"""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    COMMITTED = "committed"
+    FAILED = "failed"
+    PREVIEW = "preview"
+
+
+class ELMSyncJob(UUIDMixin, TimestampMixin, Base):
+    """Approval queue for bidirectional IBM ELM synchronization"""
+    __tablename__ = "elm_sync_jobs"
+
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_type = Column(String(50), nullable=False)  # reqif_import, artifact_create, artifact_update, workitem_create, workitem_update, link_create
+    source_entity_type = Column(String(50), nullable=False)  # requirement, test_record, soup, etc.
+    source_entity_id = Column(String(36), nullable=True)   # Cortex UUID (null for batch imports)
+    target_elm_service = Column(String(20), nullable=False)  # rm, ccm, qm, gcm
+    target_elm_url = Column(Text, nullable=False)
+    target_elm_etag = Column(String(255), nullable=True)   # OSLC ETag for optimistic locking
+    payload_snapshot = Column(JSON, nullable=False)  # Exact JSON/XML payload to be sent (SHA-256 hashed in audit)
+    payload_hash = Column(String(64), nullable=False)  # SHA-256 of payload for integrity
+    dry_run_result = Column(JSON, nullable=True)    # Diff / preview result
+    status = Column(String(20), default=ELMSyncJobStatus.PENDING.value, nullable=False)
+    approved_by = Column(String(36), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_comment = Column(Text, nullable=True)
+    elm_transaction_id = Column(String(255), nullable=True)  # ETag or response ID from ELM
+    elm_response_status = Column(Integer, nullable=True)   # HTTP status from ELM
+    elm_response_body = Column(Text, nullable=True)        # Response body (truncated if large)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0, nullable=False)
+    expires_at = Column(DateTime, nullable=True)  # Auto-expire pending jobs
+
+    __table_args__ = (
+        Index('idx_elm_job_user', 'user_id', 'created_at'),
+        Index('idx_elm_job_status', 'status'),
+        Index('idx_elm_job_type', 'job_type'),
+        Index('idx_elm_job_entity', 'source_entity_type', 'source_entity_id'),
+        Index('idx_elm_job_target', 'target_elm_service', 'target_elm_url'),
+    )
+
+    def __repr__(self):
+        return f"<ELMSyncJob {self.job_type} {self.status}>"
+
+
+class ELMSession(UUIDMixin, TimestampMixin, Base):
+    """Encrypted IBM ELM session credentials per user"""
+    __tablename__ = "elm_sessions"
+
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    auth_mode = Column(String(20), nullable=False)  # oidc, oauth1a, basic, form
+    jts_url = Column(String(500), nullable=False)
+    # Tokens encrypted at rest via application-level AES-256
+    access_token_encrypted = Column(Text, nullable=True)      # OIDC access token
+    refresh_token_encrypted = Column(Text, nullable=True)     # OIDC refresh token
+    jsession_id_encrypted = Column(Text, nullable=True)       # Jazz JSESSIONID
+    ltpa_token_encrypted = Column(Text, nullable=True)        # LTPA token (if SSO)
+    token_expires_at = Column(DateTime, nullable=True)
+    session_expires_at = Column(DateTime, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        Index('idx_elm_session_user', 'user_id'),
+        Index('idx_elm_session_expires', 'session_expires_at'),
+        Index('idx_elm_session_active', 'is_active'),
+    )
+
+    def __repr__(self):
+        return f"<ELMSession user={self.user_id} mode={self.auth_mode}>"
 
 
 # === Create all tables function ===
@@ -700,6 +827,10 @@ def initialize_default_data(session):
                         delete_after_retention=False, is_regulatory_required=True),
         RetentionPolicy(resource_type="drp_package", retention_years=10, retention_trigger="creation",
                         delete_after_retention=False, is_regulatory_required=True),
+        RetentionPolicy(resource_type="elm_sync_job", retention_years=10, retention_trigger="creation",
+                        delete_after_retention=False, is_regulatory_required=True),
+        RetentionPolicy(resource_type="elm_session", retention_years=10, retention_trigger="creation",
+                        delete_after_retention=False, is_regulatory_required=True),
     ]
 
     for policy in retention_policies:
@@ -729,6 +860,7 @@ __all__ = [
     "UserRole", "IncidentType", "IncidentSeverity", "IncidentStatus",
     "SafetyClass", "SILLevel", "DocumentType", "AssetType",
     "RequirementPriority", "RequirementStatus", "VerificationStatus", "SoupStatus",
+    "RequirementType",
     # Models
     "User", "Session", "Role", "UserRoleMapping",
     "RailwayAsset", "SOUP",
@@ -736,7 +868,9 @@ __all__ = [
     "Document", "DocumentVersion",
     "RailwayIncident",
     "RetentionPolicy", "RetentionSchedule",
-    "AuditLog",
+    "AuditLog", "KnowledgeArticle",
+    # ELM Models
+    "ELMSyncJob", "ELMSyncJobStatus", "ELMSession",
     # Functions
     "create_all_tables", "initialize_default_data",
 ]

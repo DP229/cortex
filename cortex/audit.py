@@ -82,6 +82,33 @@ class AuditAction(str, Enum):
     ROLE_CHANGE = "role_change"
     DRP_GENERATE = "drp_generate"
 
+    # IBM ELM / Engineering Lifecycle Management
+    ELM_CONFIG_UPDATE = "elm_config_update"
+    ELM_AUTH_SUCCESS = "elm_auth_success"
+    ELM_AUTH_FAILURE = "elm_auth_failure"
+    ELM_RM_REQIF_IMPORT = "elm_rm_reqif_import"
+    ELM_RM_REQIF_EXPORT = "elm_rm_reqif_export"
+    ELM_RM_ARTIFACT_READ = "elm_rm_artifact_read"
+    ELM_RM_ARTIFACT_CREATE = "elm_rm_artifact_create"
+    ELM_RM_ARTIFACT_UPDATE = "elm_rm_artifact_update"
+    ELM_RM_ARTIFACT_DELETE = "elm_rm_artifact_delete"
+    ELM_CCM_WORKITEM_READ = "elm_ccm_workitem_read"
+    ELM_CCM_WORKITEM_CREATE = "elm_ccm_workitem_create"
+    ELM_CCM_WORKITEM_UPDATE = "elm_ccm_workitem_update"
+    ELM_CCM_WORKITEM_DELETE = "elm_ccm_workitem_delete"
+    ELM_CCM_LINK_CREATE = "elm_ccm_link_create"
+    ELM_QM_TESTCASE_READ = "elm_qm_testcase_read"
+    ELM_QM_TESTCASE_CREATE = "elm_qm_testcase_create"
+    ELM_QM_TESTCASE_UPDATE = "elm_qm_testcase_update"
+    ELM_GC_BASELINE_READ = "elm_gc_baseline_read"
+    ELM_GC_CONFIG_READ = "elm_gc_config_read"
+    ELM_SYNC_JOB_CREATED = "elm_sync_job_created"
+    ELM_SYNC_JOB_APPROVED = "elm_sync_job_approved"
+    ELM_SYNC_JOB_REJECTED = "elm_sync_job_rejected"
+    ELM_SYNC_JOB_COMMITTED = "elm_sync_job_committed"
+    ELM_SYNC_JOB_FAILED = "elm_sync_job_failed"
+    ELM_SYNC_JOB_PREVIEW = "elm_sync_job_preview"
+
 
 @dataclass
 class AuditEntry:
