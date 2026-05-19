@@ -131,7 +131,9 @@ When a Notified Body audits your software lifecycle data, Cortex provides:
 | RTM | Visual traceability matrix across the V-model |
 | Test Records | Link test executions to requirements; view verification status |
 | Audit Log | Immutable, sortable audit trail with export |
-| Agent Chat | AI assistant for requirements analysis and document drafting |
+| Documents | Document management with hierarchical organization |
+| Incidents | Incident tracking and resolution workflow |
+| Qualification | T2 Tool Qualification evidence and status tracking |
 
 ---
 
@@ -236,6 +238,7 @@ cortex/
 ├── asset_routes.py                 # /assets/* — infrastructure asset CRUD
 ├── test_routes.py                  # /test-records/* — EN 50128 Table A.3 records
 ├── qualification_routes.py         # /qualification/* — T2 evidence endpoints
+├── kb_routes.py                    # /kb/* — knowledge base endpoints
 ├── models.py                       # SQLAlchemy models (User, Requirement, SOUP…)
 ├── audit.py                        # Merkle tree audit signatures
 ├── rtm.py                          # Requirements Traceability Matrix generator
@@ -249,6 +252,12 @@ cortex/
 ├── rail_taxonomy.py               # EN 50128 / EN 50716 domain model (phases, trace types)
 ├── rail_validation.py             # EN 50128 compliance validation logic
 ├── ci_qualify.py                  # CI entry point: qualify + evidence commands
+├── ibm_elm/                       # IBM Engineering Lifecycle Management integration
+│   ├── auth/                      # OIDC client + session manager
+│   ├── client/                    # Base client + Root Services discovery
+│   ├── reqif/                     # ReqIF import/export for DOORS compatibility
+│   ├── services/                  # CCM, GCM, QM, RM service clients
+│   └── routes.py                  # IBM ELM web routes
 ├── tqk/                           # Tool Qualification Kit generators
 │   ├── t2_qualifier.py            # QualificationEngine — SIL target T2 tests
 │   ├── t2_evidence.py             # T2 evidence collection + signing
@@ -267,7 +276,10 @@ frontend/
 │       ├── AssetsPage.tsx        # Railway infrastructure assets
 │       ├── RTMPage.tsx           # Traceability matrix viewer
 │       ├── TestRecordsPage.tsx   # EN 50128 Table A.3 test records
-│       └── AuditLog.tsx
+│       ├── AuditLog.tsx
+│       ├── DocumentsPage.tsx      # Document management
+│       ├── IncidentsPage.tsx     # Incident tracking
+│       └── QualificationPage.tsx # T2 qualification evidence
 ```
 
 ---
@@ -328,6 +340,13 @@ T2 Qualification  (CI/CD entry points)
 
 Audit
   GET    /audit/
+
+Knowledge Base
+  GET    /kb/
+  POST   /kb/
+  GET    /kb/{uuid}
+  PUT    /kb/{uuid}
+  DELETE /kb/{uuid}
 ```
 
 ---
