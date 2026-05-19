@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - wiki_data:/app/wiki
+      - raw_data:/app/raw
+      - cortex_data:/app/.cortex
+      - ./logs:/app/logs
+      # Data stored in container (non-persistent across rebuilds)
+      # For persistence, chown host dir as uid 999:999 and bind mount
+    environment:
+      - DATABASE_URL=sqlite:///app/data/cortex.db
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - WORKERS=4
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://195.35.22.4:8080}
+      - AUDIT_LOG_ENABLED=true
+      - EVIDENCE_OUTPUT_DIR=/app/.cortex/evidence
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  wiki_data:
+  raw_data:
+  cortex_data:
+  # postgres_data:
