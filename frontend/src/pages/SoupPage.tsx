@@ -50,7 +50,7 @@ export default function SoupPage() {
   const loadSoups = async () => {
     setLoading(true)
     try {
-      const data = await api.get('/v1/soups')
+      const data = await api.get('/soups')
       setSoups(Array.isArray(data) ? data : (data.soups ?? []))
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
@@ -76,7 +76,7 @@ export default function SoupPage() {
       if (!payload.justification) delete payload.justification
       if (!payload.integration_notes) delete payload.integration_notes
       if (!payload.risk_assessment) delete payload.risk_assessment
-      await api.post('/v1/soups', payload)
+      await api.post('/soups', payload)
       setShowModal(false)
       setForm({ name: '', vendor: '', version: '', previous_version: '', download_url: '', checksum: '', license_type: '', safety_relevance: 'class_b', justification: '', integration_notes: '', risk_assessment: '' })
       loadSoups()
@@ -89,7 +89,7 @@ export default function SoupPage() {
     if (!selectedSoup) return
     setSaving(true)
     try {
-      await api.post(`/v1/soups/${selectedSoup.id}/approve`, { justification: actionJustification })
+      await api.post(`/soups/${selectedSoup.id}/approve`, { comment: actionJustification })
       setShowApproveModal(false)
       setActionJustification('')
       loadSoups()
@@ -103,7 +103,7 @@ export default function SoupPage() {
     if (!selectedSoup) return
     setSaving(true)
     try {
-      await api.post(`/v1/soups/${selectedSoup.id}/reject`, { justification: actionJustification })
+      await api.post(`/soups/${selectedSoup.id}/reject`, { reason: actionJustification })
       setShowRejectModal(false)
       setActionJustification('')
       loadSoups()

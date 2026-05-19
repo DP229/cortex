@@ -46,7 +46,7 @@ export default function AssetsPage() {
   const loadAssets = async () => {
     setLoading(true)
     try {
-      const data = await api.get('/v1/assets')
+      const data = await api.get('/assets')
       setAssets(Array.isArray(data) ? data : (data.assets ?? []))
     } catch (e: any) {
       setError(e.message)
@@ -67,7 +67,7 @@ export default function AssetsPage() {
     try {
       const payload: any = { ...form }
       if (!payload.parent_asset_id) delete payload.parent_asset_id
-      await api.post('/v1/assets', payload)
+      await api.post('/assets', payload)
       setShowModal(false)
       setForm({ asset_id: '', asset_type: 'rolling_stock', name: '', description: '', location: '', safety_class: 'class_b', sil_level: 'sil2', parent_asset_id: '' })
       loadAssets()
@@ -81,7 +81,7 @@ export default function AssetsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Soft-delete this asset? It will be retained for EN 50128 compliance.')) return
     try {
-      await api.del(`/v1/assets/${id}`)
+      await api.del(`/assets/${id}`)
       loadAssets()
       setSelectedAsset(null)
     } catch (e: any) {

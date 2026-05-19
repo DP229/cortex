@@ -52,8 +52,8 @@ export default function TestRecordsPage() {
     setLoading(true)
     try {
       const [testsRes, reqsRes] = await Promise.allSettled([
-        api.get('/v1/test-records'),
-        api.get('/v1/requirements'),
+        api.get('/test-records'),
+        api.get('/requirements'),
       ])
       setRecords(testsRes.status === 'fulfilled' ? (Array.isArray(testsRes.value) ? testsRes.value : (testsRes.value ?? [])) : [])
       setRequirements(reqsRes.status === 'fulfilled' ? (Array.isArray(reqsRes.value) ? reqsRes.value : (reqsRes.value ?? [])) : [])
@@ -72,7 +72,7 @@ export default function TestRecordsPage() {
     setSaving(true)
     setError('')
     try {
-      await api.post('/v1/test-records', form)
+      await api.post('/test-records', form)
       setShowModal(false)
       setForm({ test_id: '', requirement_id: '', test_type: 'unit_test', test_description: '', expected_results: '', test_environment: '' })
       loadData()
@@ -85,12 +85,12 @@ export default function TestRecordsPage() {
     if (!selectedRecord) return
     setSaving(true)
     try {
-      await api.post(`/v1/test-records/${selectedRecord.id}/execute`, {
+      await api.post(`/test-records/${selectedRecord.id}/execute`, {
         passed_count: executeResult.passed,
         failed_count: executeResult.failed,
         blocked_count: executeResult.blocked,
         test_results: executeResult.results,
-        new_status: executeResult.new_status,
+        status: executeResult.new_status,
       })
       setShowExecuteModal(false)
       setExecuteResult({ passed: 0, failed: 0, blocked: 0, results: '', new_status: 'pending' })

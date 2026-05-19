@@ -53,13 +53,13 @@ export default function RTMPage() {
   const loadRTM = async () => {
     setLoading(true)
     try {
-      const reqsRes = await api.get('/v1/requirements')
+      const reqsRes = await api.get('/requirements')
       const reqs: RTMRequirement[] = Array.isArray(reqsRes) ? reqsRes : (reqsRes.requirements ?? [])
 
       const enriched = await Promise.allSettled(
         reqs.map(async (r) => {
           try {
-            const full = await api.get(`/v1/requirements/${r.id}`)
+            const full = await api.get(`/requirements/${r.id}`)
             return Array.isArray(full) ? r : { ...r, citations: (full as any).citations ?? [], test_records: (full as any).test_records ?? [] }
           } catch {
             return { ...r, citations: [], test_records: [] }

@@ -10,6 +10,9 @@ import {
   Box,
   CheckSquare,
   Network,
+  BookOpen,
+  FileArchive,
+  ShieldCheck,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './pages/Dashboard'
@@ -20,6 +23,10 @@ import TestRecordsPage from './pages/TestRecordsPage'
 import RTMPage from './pages/RTMPage'
 import AuditLog from './pages/AuditLog'
 import LoginPage from './pages/LoginPage'
+import KnowledgeBase from './pages/KnowledgeBase'
+import IncidentsPage from './pages/IncidentsPage'
+import DocumentsPage from './pages/DocumentsPage'
+import QualificationPage from './pages/QualificationPage'
 import './App.css'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -59,6 +66,15 @@ function Sidebar() {
         <NavLink to="/audit" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <ScrollText size={16} /> Audit Log
         </NavLink>
+        <NavLink to="/kb" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <BookOpen size={16} /> Knowledge Base
+        </NavLink>
+        <NavLink to="/documents" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <FileArchive size={16} /> Documents
+        </NavLink>
+        <NavLink to="/qualification" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <ShieldCheck size={16} /> Qualification
+        </NavLink>
       </div>
       <div className="nav-bottom">
         <div className="nav-user-info">
@@ -94,6 +110,10 @@ export default function App() {
                     <Route path="/tests" element={<TestRecordsPage />} />
                     <Route path="/rtm" element={<RTMPage />} />
                     <Route path="/audit" element={<AuditLog />} />
+                    <Route path="/kb" element={<KnowledgeBase />} />
+                    <Route path="/incidents" element={<IncidentsPage />} />
+                    <Route path="/documents" element={<DocumentsPage />} />
+                    <Route path="/qualification" element={<QualificationPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

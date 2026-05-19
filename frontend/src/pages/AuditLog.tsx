@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Download } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Download, Search } from 'lucide-react'
+import { api } from '../utils/api'
 import './AuditLog.css'
 
 interface AuditEvent {
-  id: number
+  id: string
   timestamp: string
   user: string
   action: string
@@ -12,30 +13,58 @@ interface AuditEvent {
   detail: string
 }
 
-const FAKE_EVENTS: AuditEvent[] = [
-  { id: 1, timestamp: '2026-04-21T02:15:00Z', user: 'admin', action: 'LOGIN', resource: 'auth', severity: 'low', detail: 'Successful JWT login' },
-  { id: 2, timestamp: '2026-04-21T02:18:00Z', user: 'admin', action: 'QUERY', resource: 'agent', severity: 'low', detail: 'Agent query: "summarize IEC 62304 requirements"' },
-  { id: 3, timestamp: '2026-04-21T02:20:00Z', user: 'admin', action: 'MEMORY_ADD', resource: 'memory', severity: 'low', detail: 'Added memory entry: compliance framework' },
-  { id: 4, timestamp: '2026-04-21T02:25:00Z', user: 'system', action: 'AUDIT_EXPORT', resource: 'audit', severity: 'medium', detail: 'Audit log exported by admin' },
-  { id: 5, timestamp: '2026-04-21T02:30:00Z', user: 'admin', action: 'MODEL_QUERY', resource: 'brain', severity: 'low', detail: 'Model llama3 latency: 420ms' },
-  { id: 6, timestamp: '2026-04-20T18:00:00Z', user: 'system', action: 'COMPLIANCE_CHECK', resource: 'knowledgebase', severity: 'high', detail: 'Citation verification failed for entry #42' },
-  { id: 7, timestamp: '2026-04-20T16:00:00Z', user: 'researcher', action: 'LOGIN', resource: 'auth', severity: 'low', detail: 'Successful JWT login' },
-  { id: 8, timestamp: '2026-04-20T16:05:00Z', user: 'researcher', action: 'RTM_GENERATE', resource: 'compliance', severity: 'medium', detail: 'Requirements traceability matrix generated' },
-]
+const SEV_MAP: Record<string, string> = { low: 'badge-green', medium: 'badge-amber', high: 'badge-red', critical: 'badge-red' }
+const SEV_COLOUR: Record<string, string> = { low: 'var(--green)', medium: 'var(--amber)', high: 'var(--red)', critical: '#ff1744' }
 
-const sevClass: Record<string, string> = {
-  low: 'badge-green', medium: 'badge-amber', high: 'badge-red', critical: 'badge-red',
+function severityForAction(action: string): 'low' | 'medium' | 'high' | 'critical' {
+  const a = action.toLowerCase()
+  if (a.includes('delete') || a.includes('login_failed')) return 'high'
+  if (a.includes('create') || a.includes('approve') || a.includes('upload')) return 'medium'
+  if (a.includes('login')) return 'low'
+  return 'low'
 }
-const sevColour: Record<string, string> = {
-  low: 'var(--green)', medium: 'var(--amber)', high: 'var(--red)', critical: '#ff1744',
+
+function formatDetail(details: any): string {
+  if (!details) return ''
+  if (typeof details === 'string') return details
+  try { return JSON.stringify(details) } catch { return String(details) }
 }
 
 export default function AuditLog() {
-  const [events] = useState<AuditEvent[]>(FAKE_EVENTS)
+  const [events, setEvents] = useState<AuditEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
   const [sortCol, setSortCol] = useState<keyof AuditEvent>('timestamp')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  const sorted = [...events].sort((a, b) => {
+  useEffect(() => { loadLogs() }, [])
+
+  const loadLogs = async () => {
+    setLoading(true)
+    try {
+      const data = await api.get('/audit/logs?limit=500')
+      const mapped: AuditEvent[] = (Array.isArray(data) ? data : (data.logs ?? [])).map((entry: any) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        user: entry.user_id ? entry.user_id.slice(0, 8) : 'system',
+        action: entry.action,
+        resource: entry.resource_type || '',
+        severity: severityForAction(entry.action),
+        detail: formatDetail(entry.details),
+      }))
+      setEvents(mapped)
+    } catch (e: any) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  const filtered = events.filter(e => {
+    if (!search) return true
+    const s = search.toLowerCase()
+    return e.action.toLowerCase().includes(s) || e.resource.toLowerCase().includes(s) || e.detail.toLowerCase().includes(s) || e.user.toLowerCase().includes(s)
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
     const av = a[sortCol] ?? ''
     const bv = b[sortCol] ?? ''
     return sortDir === 'asc' ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1)
@@ -72,6 +101,15 @@ export default function AuditLog() {
         <button className="btn btn-ghost" onClick={exportCsv}><Download size={14} /> Export CSV</button>
       </div>
 
+      <div className="flex gap-8 mb-24" style={{ maxWidth: 400 }}>
+        <div className="search-bar" style={{ flex: 1 }}>
+          <Search size={16} className="search-icon" />
+          <input className="input search-input" placeholder="Search by action, resource, user…" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+      </div>
+
+      {error && <div className="alert-error mb-16">{error}</div>}
+
       <div className="card">
         <div className="table-wrap">
           <table>
@@ -79,13 +117,17 @@ export default function AuditLog() {
               <tr>{th('timestamp', 'Timestamp')}{th('user', 'User')}{th('action', 'Action')}{th('resource', 'Resource')}{th('severity', 'Severity')}{th('detail', 'Detail')}</tr>
             </thead>
             <tbody>
-              {sorted.map(e => (
+              {loading ? (
+                <tr><td colSpan={6} className="text-muted text-sm">Loading…</td></tr>
+              ) : sorted.length === 0 ? (
+                <tr><td colSpan={6} className="text-muted text-sm">No audit events found.</td></tr>
+              ) : sorted.map(e => (
                 <tr key={e.id}>
-                  <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{e.timestamp.replace('T', ' ').replace('Z', '')}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{e.timestamp.replace('T', ' ').replace('Z', '').slice(0, 19)}</td>
                   <td><span className="badge badge-purple">{e.user}</span></td>
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{e.action}</td>
                   <td className="text-muted text-sm">{e.resource}</td>
-                  <td><span className={`badge ${sevClass[e.severity]}`} style={{ color: sevColour[e.severity] }}>{e.severity}</span></td>
+                  <td><span className={`badge ${SEV_MAP[e.severity]}`} style={{ color: SEV_COLOUR[e.severity] }}>{e.severity}</span></td>
                   <td className="text-sm">{e.detail}</td>
                 </tr>
               ))}

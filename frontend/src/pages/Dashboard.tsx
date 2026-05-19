@@ -30,10 +30,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.allSettled([
-      fetch('/api/v1/assets', { credentials: 'include' }).then(r => r.json()).catch(() => []),
-      fetch('/api/v1/requirements', { credentials: 'include' }).then(r => r.json()).catch(() => []),
-      fetch('/api/v1/soups', { credentials: 'include' }).then(r => r.json()).catch(() => []),
-      fetch('/api/v1/test-records', { credentials: 'include' }).then(r => r.json()).catch(() => []),
+      fetch('/api/assets', { credentials: 'include' }).then(r => r.json()).catch(() => []),
+      fetch('/api/requirements', { credentials: 'include' }).then(r => r.json()).catch(() => []),
+      fetch('/api/soups', { credentials: 'include' }).then(r => r.json()).catch(() => []),
+      fetch('/api/test-records', { credentials: 'include' }).then(r => r.json()).catch(() => []),
       fetch('/api/health', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([assetsRes, reqsRes, soupsRes, testsRes, healthRes]) => {
       const assets: any[] = assetsRes.status === 'fulfilled' ? (assetsRes.value ?? []) : []
