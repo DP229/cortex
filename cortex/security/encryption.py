@@ -507,6 +507,31 @@ def secure_delete(file_path: str, passes: int = 3):
 
 # === Export ===
 
+def encrypt_field(plaintext: str) -> str:
+    """Encrypt a general string field for storage using the global key."""
+    if not plaintext:
+        return plaintext
+    key_manager = get_key_manager()
+    encryption = EncryptionManager(key_manager.get_encryption_key())
+    encrypted = encryption.encrypt(plaintext)
+    return f"{encrypted['ciphertext']}:{encrypted['nonce']}"
+
+
+def decrypt_field(encrypted_str: str) -> str:
+    """Decrypt a general string field."""
+    if not encrypted_str:
+        return encrypted_str
+    key_manager = get_key_manager()
+    encryption = EncryptionManager(key_manager.get_encryption_key())
+    parts = encrypted_str.split(":")
+    if len(parts) != 2:
+        return encrypted_str  # Not encrypted or legacy plaintext
+    try:
+        return encryption.decrypt({"ciphertext": parts[0], "nonce": parts[1]})
+    except Exception:
+        return encrypted_str  # Fallback to returning original string
+
+
 __all__ = [
     "hash_password",
     "verify_password",
@@ -519,6 +544,8 @@ __all__ = [
     "mask_phi",
     "mask_sensitive_data",
     "secure_delete",
+    "encrypt_field",
+    "decrypt_field",
 ]
 
 

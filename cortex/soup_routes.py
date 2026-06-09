@@ -114,6 +114,7 @@ def require_permission(user: User, permission: Permission) -> None:
 
 
 def _soup_to_response(soup: SOUP) -> SoupResponse:
+    from cortex.security.encryption import decrypt_field
     return SoupResponse(
         id=str(soup.id),
         name=soup.name,
@@ -125,12 +126,12 @@ def _soup_to_response(soup: SOUP) -> SoupResponse:
         license_type=soup.license_type,
         status=str(soup.status),
         safety_relevance=str(soup.safety_relevance),
-        justification=soup.justification,
-        integration_notes=soup.integration_notes,
+        justification=decrypt_field(soup.justification),
+        integration_notes=decrypt_field(soup.integration_notes),
         approved_by=str(soup.approved_by) if soup.approved_by else None,
         approved_at=soup.approved_at.isoformat() if soup.approved_at else None,
         review_due_date=soup.review_due_date.isoformat() if soup.review_due_date else None,
-        risk_assessment=soup.risk_assessment,
+        risk_assessment=decrypt_field(soup.risk_assessment),
         is_active=soup.is_active,
         created_at=soup.created_at.isoformat() if soup.created_at else None,
         updated_at=soup.updated_at.isoformat() if soup.updated_at else None,
@@ -168,6 +169,7 @@ async def create_soup(
                 detail=f"SOUP '{req.name}' version '{req.version}' already registered",
             )
 
+        from cortex.security.encryption import encrypt_field
         soup = SOUP(
             name=req.name,
             vendor=req.vendor,
@@ -178,9 +180,9 @@ async def create_soup(
             license_type=req.license_type,
             status=SoupStatus.CANDIDATE.value,
             safety_relevance=req.safety_relevance,
-            justification=req.justification,
-            integration_notes=req.integration_notes,
-            risk_assessment=req.risk_assessment,
+            justification=encrypt_field(req.justification),
+            integration_notes=encrypt_field(req.integration_notes),
+            risk_assessment=encrypt_field(req.risk_assessment),
             is_active=True,
         )
         session.add(soup)
@@ -312,12 +314,13 @@ async def update_soup(
             soup.license_type = update.license_type
         if update.safety_relevance is not None:
             soup.safety_relevance = update.safety_relevance
+        from cortex.security.encryption import encrypt_field
         if update.justification is not None:
-            soup.justification = update.justification
+            soup.justification = encrypt_field(update.justification)
         if update.integration_notes is not None:
-            soup.integration_notes = update.integration_notes
+            soup.integration_notes = encrypt_field(update.integration_notes)
         if update.risk_assessment is not None:
-            soup.risk_assessment = update.risk_assessment
+            soup.risk_assessment = encrypt_field(update.risk_assessment)
         if update.review_due_date is not None:
             soup.review_due_date = update.review_due_date
 

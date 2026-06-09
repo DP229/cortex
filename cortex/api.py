@@ -9,6 +9,17 @@ EN 50128 Class B compliant API:
 """
 
 import os
+from pathlib import Path
+
+# Load .env from project root so uvicorn-launched processes see env vars
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path)
+except ImportError:
+    pass
+
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -33,6 +44,7 @@ from cortex.test_routes import router as test_router
 from cortex.qualification_routes import router as qualification_router
 from cortex.kb_routes import router as kb_router
 from cortex.ibm_elm.routes import router as elm_router
+from cortex.chat_routes import router as chat_router
 
 logger = structlog.get_logger()
 
@@ -53,6 +65,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("cortex_shutdown")
 
 
+
+from cortex.security.middleware import apply_security_middleware
+
 # === FastAPI App ===
 
 app = FastAPI(
@@ -63,26 +78,21 @@ app = FastAPI(
     ),
     version=__version__,
     lifespan=lifespan,
+    redirect_slashes=False,
     docs_url="/docs" if os.getenv("ENABLE_SWAGGER", "false").lower() == "true" else "/docs",
     redoc_url="/redoc" if os.getenv("ENABLE_SWAGGER", "false").lower() == "true" else "/redoc",
 )
 
-# === Security Headers ===
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    """Add security headers to every response."""
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
-    return response
+# Apply security middlewares (Rate Limiting, Input Validation, Security Headers)
+apply_security_middleware(app)
 
 
 # === CORS Configuration ===
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://app.viveka.my").split(",")
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://app.viveka.my,http://localhost:3000,http://127.0.0.1:3000",
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -128,6 +138,7 @@ app.include_router(test_router)
 app.include_router(qualification_router)
 app.include_router(kb_router)
 app.include_router(elm_router)
+app.include_router(chat_router)
 
 
 # === Root Endpoint ===

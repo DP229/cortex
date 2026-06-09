@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 import os
+import io
 import json as _json
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
@@ -180,12 +181,13 @@ def require_permission(user: User, permission: Permission) -> None:
 
 
 def _requirement_to_response(req: Requirement, citations: Optional[List[RequirementCitation]] = None) -> RequirementResponse:
+    from cortex.security.encryption import decrypt_field
     return RequirementResponse(
         id=str(req.id),
         requirement_id=str(req.requirement_id),
         title=req.title,
-        description=req.description,
-        rationale=req.rationale,
+        description=decrypt_field(req.description),
+        rationale=decrypt_field(req.rationale),
         requirement_type=req.requirement_type,
         priority=req.priority,
         status=req.status,
@@ -195,7 +197,7 @@ def _requirement_to_response(req: Requirement, citations: Optional[List[Requirem
         source=req.source,
         compliance_ref=req.compliance_ref,
         stakeholder=req.stakeholder,
-        acceptance_criteria=req.acceptance_criteria,
+        acceptance_criteria=decrypt_field(req.acceptance_criteria),
         allocation=req.allocation,
         version=req.version or 1,
         change_history=req.change_history,
@@ -280,11 +282,12 @@ async def create_requirement(
                     detail=f"SOUP '{req.soup_id}' not found",
                 )
 
+        from cortex.security.encryption import encrypt_field
         requirement = Requirement(
             requirement_id=req.requirement_id,
             title=req.title,
-            description=req.description,
-            rationale=req.rationale,
+            description=encrypt_field(req.description),
+            rationale=encrypt_field(req.rationale),
             requirement_type=req.requirement_type,
             priority=req.priority,
             status=RequirementStatus.DRAFT.value,
@@ -294,7 +297,7 @@ async def create_requirement(
             source=req.source,
             compliance_ref=req.compliance_ref,
             stakeholder=req.stakeholder,
-            acceptance_criteria=req.acceptance_criteria,
+            acceptance_criteria=encrypt_field(req.acceptance_criteria),
             allocation=req.allocation,
             version=1,
             change_history=[],
@@ -406,14 +409,14 @@ def _parse_document_text(filename: str, content: bytes) -> str:
     if ext == "pdf":
         try:
             import pdfplumber
-            with pdfplumber.open(_io.BytesIO(content)) as pdf:
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
                 return "\n\n".join(page.extract_text() or "" for page in pdf.pages)
         except ImportError:
             pass
     if ext in ("docx", "doc"):
         try:
             from docx import Document as DocxDocument
-            doc = DocxDocument(_io.BytesIO(content))
+            doc = DocxDocument(io.BytesIO(content))
             return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except ImportError:
             pass
@@ -430,10 +433,10 @@ def _parse_document_text(filename: str, content: bytes) -> str:
 
 def _call_llm_for_extraction(text: str, kb_context: str = "") -> List[dict]:
     try:
-        from cortex.brain import Brain, ModelProvider
+        from cortex.brain import Brain, ModelProvider, ModelConfig
         model = os.getenv("LLM_MODEL", "llama3")
         provider = os.getenv("LLM_PROVIDER", "ollama")
-        brain = Brain(model=model, provider=ModelProvider(provider) if provider else ModelProvider.OLLAMA)
+        brain = Brain(default_model=model)
 
         kb_section = ""
         if kb_context:
@@ -459,7 +462,7 @@ Document text:
 
 Requirements JSON array:"""
 
-        result, _ = brain.generate(prompt, temperature=0.3, max_tokens=4096)
+        result, _ = brain.generate(prompt, config=ModelConfig(temperature=0.3, max_tokens=4096))
         json_str = result.strip()
         if "```" in json_str:
             parts = json_str.split("```")
@@ -710,10 +713,10 @@ async def generate_requirements(
         kb_context = f"FOCUS AREA: {req.topic}\n\n{kb_context}"
 
     try:
-        from cortex.brain import Brain, ModelProvider
+        from cortex.brain import Brain, ModelProvider, ModelConfig
         model = os.getenv("LLM_MODEL", "llama3")
         provider = os.getenv("LLM_PROVIDER", "ollama")
-        brain = Brain(model=model, provider=ModelProvider(provider) if provider else ModelProvider.OLLAMA)
+        brain = Brain(default_model=model)
 
         prompt = f"""Generate {req.count} INCOSE-compliant system requirements based on the knowledge base.
 Return ONLY a JSON array of requirement objects.
@@ -726,7 +729,49 @@ Knowledge Base:
 
 Requirements JSON array:"""
 
-        result, _ = brain.generate(prompt, temperature=0.4, max_tokens=4096)
+        result, _ = brain.generate(prompt, config=ModelConfig(temperature=0.4, max_tokens=4096))
+        
+        # Create Decision Reproducibility Package (DRP)
+        try:
+            from cortex.decision_reproducibility import DRPConfig, DRPWriter, DRPPrompt, DRPResponse, DRPModelInfo
+            from cortex.security.immutable_audit import KeyRotationManager
+            
+            drp_config = DRPConfig(storage_path=os.path.expanduser("~/.cortex/drp"))
+            key_manager = KeyRotationManager(key_storage_path=os.path.expanduser("~/.cortex/drp_keys"))
+            writer = DRPWriter(drp_config)
+            drp_config.key_manager = key_manager
+            
+            package_id = writer.create_package(
+                created_by=str(current_user.id),
+                compliance_standards=["EN_50128"]
+            )
+            
+            writer.write_prompt(package_id, DRPPrompt(
+                prompt_text=prompt,
+                system_prompt="You are a compliance assistant for safety-critical systems.",
+                expanded_query=prompt,
+                token_count=len(prompt.split())
+            ))
+            
+            writer.write_response(package_id, DRPResponse(
+                response_text=result,
+                token_count=len(result.split()),
+                latency_ms=0
+            ))
+            
+            writer.write_model_info(package_id, DRPModelInfo(
+                model_name=model,
+                provider=provider,
+                temperature=0.4,
+                max_tokens=4096,
+                parameters={}
+            ))
+            
+            writer.finalize_package(package_id)
+            logger.info("drp_package_generated_for_requirements", package_id=package_id)
+        except Exception as drp_err:
+            logger.error("drp_generation_failed", error=str(drp_err))
+
         json_str = result.strip()
         if "```" in json_str:
             for p in json_str.split("```"):
@@ -750,216 +795,6 @@ Requirements JSON array:"""
         logger.error("requirement_generation_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
-
-
-@router.get("/{requirement_uuid}", response_model=RequirementTraceabilityResponse)
-async def get_requirement(
-    requirement_uuid: str,
-    request: Request,
-    current_user: User = Depends(get_current_active_user_from_request),
-):
-    """
-    Get a requirement with its full traceability graph.
-
-    **Requires:** `requirement:read` permission
-
-    Returns the requirement plus: upstream citations (what it cites),
-    downstream citations (what cites it), derived requirements, and test records.
-    """
-    require_permission(current_user, Permission.REQUIREMENT_READ)
-
-    db = get_database_manager()
-    with db.get_session() as session:
-        requirement = session.query(Requirement).filter(
-            Requirement.id == requirement_uuid
-        ).first()
-
-        if not requirement:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Requirement '{requirement_uuid}' not found",
-            )
-
-        # Citations where this requirement is the source
-        upstream = session.query(RequirementCitation).filter(
-            RequirementCitation.source_requirement_id == requirement_uuid
-        ).all()
-
-        # Citations where this requirement is the target
-        downstream = session.query(RequirementCitation).filter(
-            RequirementCitation.target_requirement_id == requirement_uuid
-        ).all()
-
-        # Derived requirements (children)
-        derived = session.query(Requirement).filter(
-            Requirement.parent_requirement_id == requirement_uuid
-        ).all()
-
-        # Test records
-        from cortex.models import TestRecord
-        test_records = session.query(TestRecord).filter(
-            TestRecord.requirement_id == requirement_uuid
-        ).all()
-
-        response = RequirementTraceabilityResponse(
-            requirement=_requirement_to_response(requirement),
-            citations=[_citation_to_response(c) for c in upstream + downstream],
-            derived_requirements=[_requirement_to_response(r) for r in derived],
-            test_records=[{
-                "id": str(t.id),
-                "test_id": t.test_id,
-                "test_type": t.test_type,
-                "status": t.status,
-                "executed_at": t.executed_at.isoformat() if t.executed_at else None,
-            } for t in test_records],
-        )
-
-    return response
-
-
-@router.patch("/{requirement_uuid}", response_model=RequirementResponse)
-async def update_requirement(
-    requirement_uuid: str,
-    update: RequirementUpdateRequest,
-    request: Request,
-    current_user: User = Depends(get_current_active_user_from_request),
-):
-    """
-    Update a requirement.
-
-    **Requires:** `requirement:write` permission
-
-    **EN 50128:** Requirement changes must be re-verified after modification.
-    """
-    require_permission(current_user, Permission.REQUIREMENT_WRITE)
-
-    db = get_database_manager()
-    with db.get_session() as session:
-        requirement = session.query(Requirement).filter(
-            Requirement.id == requirement_uuid
-        ).first()
-
-        if not requirement:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Requirement '{requirement_uuid}' not found",
-            )
-
-        # Apply updates
-        if update.title is not None:
-            requirement.title = update.title
-        if update.description is not None:
-            requirement.description = update.description
-        if update.rationale is not None:
-            requirement.rationale = update.rationale
-        if update.requirement_type is not None:
-            requirement.requirement_type = update.requirement_type
-        if update.priority is not None:
-            requirement.priority = update.priority
-        if update.status is not None:
-            requirement.status = update.status
-        if update.safety_class is not None:
-            requirement.safety_class = update.safety_class
-        if update.sil_level is not None:
-            requirement.sil_level = update.sil_level
-        if update.category is not None:
-            requirement.category = update.category
-        if update.source is not None:
-            requirement.source = update.source
-        if update.compliance_ref is not None:
-            requirement.compliance_ref = update.compliance_ref
-        if update.stakeholder is not None:
-            requirement.stakeholder = update.stakeholder
-        if update.acceptance_criteria is not None:
-            requirement.acceptance_criteria = update.acceptance_criteria
-        if update.allocation is not None:
-            requirement.allocation = update.allocation
-        if update.asset_id is not None:
-            requirement.asset_id = update.asset_id
-        if update.traceability_tags is not None:
-            requirement.traceability_tags = update.traceability_tags
-        if update.risk_level is not None:
-            requirement.risk_level = update.risk_level
-        if update.verification_method is not None:
-            requirement.verification_method = update.verification_method
-        if update.verification_status is not None:
-            requirement.verification_status = update.verification_status
-            if update.verification_status == VerificationStatus.PENDING.value:
-                requirement.approved_by = None
-                requirement.approved_at = None
-
-        # Bump version and record change
-        ch = list(requirement.change_history or [])
-        ch.append({
-            "version": (requirement.version or 1) + 1,
-            "who": str(current_user.id),
-            "when": datetime.utcnow().isoformat(),
-            "what": update.model_dump(exclude_none=True),
-        })
-        requirement.change_history = ch
-        requirement.version = (requirement.version or 1) + 1
-
-        session.commit()
-        session.refresh(requirement)
-        response = _requirement_to_response(requirement)
-
-    log_audit(
-        action=AuditAction.REQUIREMENT_UPDATE.value,
-        user_id=current_user.id,
-        resource_type="requirement",
-        resource_id=requirement_uuid,
-        ip_address=get_client_ip(request),
-        details={"updated_fields": update.model_dump(exclude_none=True)},
-    )
-
-    return response
-
-
-@router.post("/{requirement_uuid}/approve", response_model=RequirementResponse)
-async def approve_requirement(
-    requirement_uuid: str,
-    request: Request,
-    current_user: User = Depends(get_current_active_user_from_request),
-    body: RequirementApproveRequest = None,
-):
-    """
-    Approve a requirement.
-
-    **Requires:** `requirement:approve` permission
-
-    **EN 50128:** Approved requirements must not be modified without re-approval.
-    """
-    require_permission(current_user, Permission.REQUIREMENT_APPROVE)
-
-    db = get_database_manager()
-    with db.get_session() as session:
-        requirement = session.query(Requirement).filter(
-            Requirement.id == requirement_uuid
-        ).first()
-
-        if not requirement:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Requirement '{requirement_uuid}' not found",
-            )
-
-        requirement.status = RequirementStatus.APPROVED.value
-        requirement.approved_by = current_user.id
-        requirement.approved_at = datetime.utcnow()
-        session.commit()
-        session.refresh(requirement)
-        response = _requirement_to_response(requirement)
-
-    log_audit(
-        action=AuditAction.REQUIREMENT_APPROVE.value,
-        user_id=current_user.id,
-        resource_type="requirement",
-        resource_id=requirement_uuid,
-        ip_address=get_client_ip(request),
-        details={"comment": body.comment if body else None, "action": "approved"},
-    )
-
-    return response
 
 
 # === Traceability Citations ===
@@ -1122,3 +957,214 @@ async def verify_citation(
     )
 
     return response
+@router.get("/{requirement_uuid}", response_model=RequirementTraceabilityResponse)
+async def get_requirement(
+    requirement_uuid: str,
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+):
+    """
+    Get a requirement with its full traceability graph.
+
+    **Requires:** `requirement:read` permission
+
+    Returns the requirement plus: upstream citations (what it cites),
+    downstream citations (what cites it), derived requirements, and test records.
+    """
+    require_permission(current_user, Permission.REQUIREMENT_READ)
+
+    db = get_database_manager()
+    with db.get_session() as session:
+        requirement = session.query(Requirement).filter(
+            Requirement.id == requirement_uuid
+        ).first()
+
+        if not requirement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Requirement '{requirement_uuid}' not found",
+            )
+
+        # Citations where this requirement is the source
+        upstream = session.query(RequirementCitation).filter(
+            RequirementCitation.source_requirement_id == requirement_uuid
+        ).all()
+
+        # Citations where this requirement is the target
+        downstream = session.query(RequirementCitation).filter(
+            RequirementCitation.target_requirement_id == requirement_uuid
+        ).all()
+
+        # Derived requirements (children)
+        derived = session.query(Requirement).filter(
+            Requirement.parent_requirement_id == requirement_uuid
+        ).all()
+
+        # Test records
+        from cortex.models import TestRecord
+        test_records = session.query(TestRecord).filter(
+            TestRecord.requirement_id == requirement_uuid
+        ).all()
+
+        response = RequirementTraceabilityResponse(
+            requirement=_requirement_to_response(requirement),
+            citations=[_citation_to_response(c) for c in upstream + downstream],
+            derived_requirements=[_requirement_to_response(r) for r in derived],
+            test_records=[{
+                "id": str(t.id),
+                "test_id": t.test_id,
+                "test_type": t.test_type,
+                "status": t.status,
+                "executed_at": t.executed_at.isoformat() if t.executed_at else None,
+            } for t in test_records],
+        )
+
+    return response
+
+
+@router.patch("/{requirement_uuid}", response_model=RequirementResponse)
+async def update_requirement(
+    requirement_uuid: str,
+    update: RequirementUpdateRequest,
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+):
+    """
+    Update a requirement.
+
+    **Requires:** `requirement:write` permission
+
+    **EN 50128:** Requirement changes must be re-verified after modification.
+    """
+    require_permission(current_user, Permission.REQUIREMENT_WRITE)
+
+    db = get_database_manager()
+    with db.get_session() as session:
+        requirement = session.query(Requirement).filter(
+            Requirement.id == requirement_uuid
+        ).first()
+
+        if not requirement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Requirement '{requirement_uuid}' not found",
+            )
+
+        # Apply updates
+        from cortex.security.encryption import encrypt_field
+        if update.title is not None:
+            requirement.title = update.title
+        if update.description is not None:
+            requirement.description = encrypt_field(update.description)
+        if update.rationale is not None:
+            requirement.rationale = encrypt_field(update.rationale)
+        if update.requirement_type is not None:
+            requirement.requirement_type = update.requirement_type
+        if update.priority is not None:
+            requirement.priority = update.priority
+        if update.status is not None:
+            requirement.status = update.status
+        if update.safety_class is not None:
+            requirement.safety_class = update.safety_class
+        if update.sil_level is not None:
+            requirement.sil_level = update.sil_level
+        if update.category is not None:
+            requirement.category = update.category
+        if update.source is not None:
+            requirement.source = update.source
+        if update.compliance_ref is not None:
+            requirement.compliance_ref = update.compliance_ref
+        if update.stakeholder is not None:
+            requirement.stakeholder = update.stakeholder
+        if update.acceptance_criteria is not None:
+            requirement.acceptance_criteria = encrypt_field(update.acceptance_criteria)
+        if update.allocation is not None:
+            requirement.allocation = update.allocation
+        if update.asset_id is not None:
+            requirement.asset_id = update.asset_id
+        if update.traceability_tags is not None:
+            requirement.traceability_tags = update.traceability_tags
+        if update.risk_level is not None:
+            requirement.risk_level = update.risk_level
+        if update.verification_method is not None:
+            requirement.verification_method = update.verification_method
+        if update.verification_status is not None:
+            requirement.verification_status = update.verification_status
+            if update.verification_status == VerificationStatus.PENDING.value:
+                requirement.approved_by = None
+                requirement.approved_at = None
+
+        # Bump version and record change
+        ch = list(requirement.change_history or [])
+        ch.append({
+            "version": (requirement.version or 1) + 1,
+            "who": str(current_user.id),
+            "when": datetime.utcnow().isoformat(),
+            "what": update.model_dump(exclude_none=True),
+        })
+        requirement.change_history = ch
+        requirement.version = (requirement.version or 1) + 1
+
+        session.commit()
+        session.refresh(requirement)
+        response = _requirement_to_response(requirement)
+
+    log_audit(
+        action=AuditAction.REQUIREMENT_UPDATE.value,
+        user_id=current_user.id,
+        resource_type="requirement",
+        resource_id=requirement_uuid,
+        ip_address=get_client_ip(request),
+        details={"updated_fields": update.model_dump(exclude_none=True)},
+    )
+
+    return response
+
+
+@router.post("/{requirement_uuid}/approve", response_model=RequirementResponse)
+async def approve_requirement(
+    requirement_uuid: str,
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+    body: RequirementApproveRequest = None,
+):
+    """
+    Approve a requirement.
+
+    **Requires:** `requirement:approve` permission
+
+    **EN 50128:** Approved requirements must not be modified without re-approval.
+    """
+    require_permission(current_user, Permission.REQUIREMENT_APPROVE)
+
+    db = get_database_manager()
+    with db.get_session() as session:
+        requirement = session.query(Requirement).filter(
+            Requirement.id == requirement_uuid
+        ).first()
+
+        if not requirement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Requirement '{requirement_uuid}' not found",
+            )
+
+        requirement.status = RequirementStatus.APPROVED.value
+        requirement.approved_by = current_user.id
+        requirement.approved_at = datetime.utcnow()
+        session.commit()
+        session.refresh(requirement)
+        response = _requirement_to_response(requirement)
+
+    log_audit(
+        action=AuditAction.REQUIREMENT_APPROVE.value,
+        user_id=current_user.id,
+        resource_type="requirement",
+        resource_id=requirement_uuid,
+        ip_address=get_client_ip(request),
+        details={"comment": body.comment if body else None, "action": "approved"},
+    )
+
+    return response
+
+

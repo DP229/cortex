@@ -664,7 +664,7 @@ async def deactivate_user(
         db = get_database_manager()
         
         with db.get_session() as session:
-            user = session.query(User).filter(User.id == user_id).first()
+            user = session.query(User).filter(User.id == str(user_id)).first()
             
             if not user:
                 raise HTTPException(
@@ -729,7 +729,7 @@ async def activate_user(
         db = get_database_manager()
         
         with db.get_session() as session:
-            user = session.query(User).filter(User.id == user_id).first()
+            user = session.query(User).filter(User.id == str(user_id)).first()
             
             if not user:
                 raise HTTPException(

@@ -211,10 +211,17 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
     - Path traversal
     """
     
+    # Paths whose bodies are passed to an LLM, not to SQL — exempt from
+    # keyword-based injection scanning to avoid false positives on natural
+    # language queries such as "Select the right SIL level" or "Create a plan".
+    EXEMPT_PATHS = ("/api/chat",)
+
     async def dispatch(self, request: Request, call_next):
         """Validate request body"""
         # Only validate POST, PUT, PATCH requests
-        if request.method in ["POST", "PUT", "PATCH"]:
+        if request.method in ["POST", "PUT", "PATCH"] and not any(
+            request.url.path.startswith(p) for p in self.EXEMPT_PATHS
+        ):
             # Read body for validation
             body = await request.body()
             

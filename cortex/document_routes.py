@@ -474,7 +474,7 @@ async def list_documents(
     current_user: User = Depends(get_current_active_user_from_request),
     asset_id: Optional[str] = None,
     document_type: Optional[str] = None,
-    status: Optional[str] = None,
+    doc_status: Optional[str] = Query(default=None, alias="status", description="Filter by document status"),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
 ):
@@ -495,12 +495,12 @@ async def list_documents(
 
         asset_uuid = UUID(asset_id) if asset_id else None
         doc_type = DocumentType(document_type.lower()) if document_type else None
-        doc_status = DocumentStatus(status.lower()) if status else None
+        status_filter = DocumentStatus(doc_status.lower()) if doc_status else None
 
         documents, total = document_manager.list_documents(
             asset_id=asset_uuid,
             document_type=doc_type,
-            status=doc_status,
+            status=status_filter,
             limit=limit,
             offset=offset,
         )

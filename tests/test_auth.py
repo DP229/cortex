@@ -19,6 +19,15 @@ from cortex.database import get_database_manager
 from cortex.models import User, UserRole
 
 
+@pytest.fixture(autouse=True)
+def clean_db():
+    """Clean the users table before each test"""
+    db = get_database_manager()
+    with db.get_session() as session:
+        session.query(User).delete()
+    yield
+
+
 class TestPasswordHashing:
     """Test password hashing"""
     
@@ -73,12 +82,12 @@ class TestUserRegistration:
             email="test@example.com",
             password="TestPassword123!",
             full_name="Test User",
-            role="clinician"
+            role="safety_engineer"
         )
         
         assert user is not None
         assert user.email == "test@example.com"
-        assert user.role == UserRole.CLINICIAN
+        assert user.role == UserRole.SAFETY_ENGINEER
         assert user.is_active is True
         assert user.password_hash != "TestPassword123!"  # Should be hashed
     
@@ -89,7 +98,7 @@ class TestUserRegistration:
                 email="invalid-email",
                 password="TestPassword123!",
                 full_name="Test User",
-                role="clinician"
+                role="safety_engineer"
             )
     
     def test_register_user_invalid_role(self):
@@ -109,7 +118,7 @@ class TestUserRegistration:
                 email="test@example.com",
                 password="weak",  # Too short
                 full_name="Test User",
-                role="clinician"
+                role="safety_engineer"
             )
     
     def test_register_user_duplicate_email(self):
@@ -119,7 +128,7 @@ class TestUserRegistration:
             email="duplicate@example.com",
             password="TestPassword123!",
             full_name="First User",
-            role="clinician"
+            role="safety_engineer"
         )
         
         # Second registration with same email
@@ -128,7 +137,7 @@ class TestUserRegistration:
                 email="duplicate@example.com",
                 password="TestPassword456!",
                 full_name="Second User",
-                role="clinician"
+                role="safety_engineer"
             )
 
 
@@ -148,7 +157,7 @@ class TestUserLogin:
             email="test@example.com",
             password="TestPassword123!",
             full_name="Test User",
-            role="clinician"
+            role="safety_engineer"
         )
     
     def test_login_success(self):
@@ -196,7 +205,7 @@ class TestJWT:
             email="test@example.com",
             password="TestPassword123!",
             full_name="Test User",
-            role="clinician"
+            role="safety_engineer"
         )
         
         self.tokens = self.auth.login(
@@ -225,10 +234,12 @@ class TestJWT:
         
         assert user is not None
         assert user.email == "test@example.com"
-        assert user.role == UserRole.CLINICIAN
+        assert user.role == UserRole.SAFETY_ENGINEER
     
     def test_refresh_token(self):
         """Test token refresh"""
+        import time
+        time.sleep(1.1)
         new_tokens = self.auth.refresh_access_token(self.tokens["refresh_token"])
         
         assert "access_token" in new_tokens
@@ -253,7 +264,7 @@ class TestAccountLockout:
             email="test@example.com",
             password="TestPassword123!",
             full_name="Test User",
-            role="clinician"
+            role="safety_engineer"
         )
     
     def test_account_lockout_after_failed_attempts(self):

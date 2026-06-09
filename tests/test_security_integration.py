@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Integration Tests for Security and Compliance
+Integration Tests for Security and Compliance - Railway Safety Compliance
 
 Tests end-to-end functionality of:
 - Authentication
 - RBAC
 - Audit logging
-- PHI detection
 - Rate limiting
+- Security headers
+- Input validation (SQLi/XSS prevention)
 """
 
 import pytest
@@ -16,10 +17,28 @@ from uuid import uuid4
 import time
 
 # Import app
-from cortex.api_healthcare import app
+from cortex.api import app
 from cortex.database import get_database_manager
 from cortex.models import User, UserRole, AuditLog
 from cortex.security.auth import get_auth_manager
+
+
+@pytest.fixture(autouse=True)
+def clean_db():
+    """Clean the users, audit logs tables, and rate limiter before each test"""
+    db = get_database_manager()
+    with db.get_session() as session:
+        session.query(AuditLog).delete()
+        session.query(User).delete()
+    
+    # Reset global rate limiter state
+    from cortex.security.rate_limiter import get_rate_limiter
+    limiter = get_rate_limiter()
+    limiter._ip_limits.clear()
+    limiter._user_limits.clear()
+    limiter._global_limits.clear()
+    
+    yield
 
 
 @pytest.fixture
@@ -35,7 +54,7 @@ def test_user_data():
         "email": f"test_{uuid4()}@example.com",
         "password": "SecureP@ss123!",
         "full_name": "Test User",
-        "role": "clinician"
+        "role": "safety_engineer"
     }
 
 
@@ -141,9 +160,9 @@ class TestRBACPermissions:
         assert response.status_code == 200
         assert isinstance(response.json(), list)
     
-    def test_clinician_cannot_list_users(self, client, test_user_data):
-        """Test clinician cannot list users"""
-        # Register clinician
+    def test_safety_engineer_cannot_list_users(self, client, test_user_data):
+        """Test safety engineer cannot list users"""
+        # Register safety engineer
         client.post("/auth/register", json=test_user_data)
         
         # Login
@@ -176,7 +195,7 @@ class TestAuditLogging:
         # Count audit logs before
         with db.get_session() as session:
             count_before = session.query(AuditLog).filter(
-                AuditLog.action == "login"
+                AuditLog.action == "login_success"
             ).count()
         
         # Login
@@ -188,7 +207,7 @@ class TestAuditLogging:
         # Count audit logs after
         with db.get_session() as session:
             count_after = session.query(AuditLog).filter(
-                AuditLog.action == "login"
+                AuditLog.action == "login_success"
             ).count()
         
         # Should have one more login audit log
@@ -217,40 +236,6 @@ class TestAuditLogging:
         assert isinstance(response.json(), list)
 
 
-class TestPHIDetection:
-    """Test PHI detection integration"""
-    
-    def test_phi_detection_in_text(self):
-        """Test PHI detection functionality"""
-        from cortex.security.phi_detection import detect_phi, PHIType
-        
-        text = """
-        Patient John Smith
-        SSN: 123-45-6789
-        DOB: 01/15/1980
-        Phone: (555) 123-4567
-        Email: john@example.com
-        """
-        
-        matches = detect_phi(text)
-        
-        assert len(matches) > 0
-        
-        # Should detect SSN
-        ssn_matches = [m for m in matches if m.phi_type == PHIType.SSN]
-        assert len(ssn_matches) > 0
-    
-    def test_phi_redaction(self):
-        """Test PHI redaction"""
-        from cortex.security.phi_detection import redact_phi
-        
-        text = "Patient SSN: 123-45-6789"
-        redacted = redact_phi(text)
-        
-        assert "123-45-6789" not in redacted
-        assert "[REDACTED]" in redacted or "SSN" in redacted
-
-
 class TestRateLimiting:
     """Test rate limiting"""
     
@@ -266,11 +251,7 @@ class TestRateLimiting:
             })
             responses.append(response)
         
-        # Should eventually get rate limited
-        rate_limited = any(r.status_code == 429 for r in responses)
-        
-        # May or may not be rate limited depending on timing
-        # Just verify requests are processed
+        # Should eventually get rate limited or at least all are processed/attempted
         assert len(responses) == 10
 
 
@@ -315,7 +296,7 @@ class TestInputValidation:
         from cortex.security.validation import SecurityValidator
         
         # Valid password
-        is_valid, error = SecurityValidator.validate_password_strength("SecureP@ss123")
+        is_valid, error = SecurityValidator.validate_password_strength("SecureP@ss123!")
         assert is_valid is True
         
         # Weak password
@@ -333,7 +314,7 @@ class TestIntegration:
             "email": f"workflow_{uuid4()}@example.com",
             "password": "WorkflowP@ss123!",
             "full_name": "Workflow User",
-            "role": "clinician"
+            "role": "safety_engineer"
         }
         
         response = client.post("/auth/register", json=user_data)
@@ -348,11 +329,8 @@ class TestIntegration:
         
         token = response.json()["access_token"]
         
-        # 3. Access protected endpoint
-        response = client.get(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        # 3. Access protected endpoint (using cookies automatically handled by TestClient)
+        response = client.get("/auth/me")
         assert response.status_code == 200
         
         # 4. Verify user info
@@ -360,18 +338,12 @@ class TestIntegration:
         assert user_info["email"] == user_data["email"]
         assert user_info["role"] == user_data["role"]
         
-        # 5. Logout
-        response = client.post(
-            "/auth/logout",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        # 5. Logout (clears cookie)
+        response = client.post("/auth/logout")
         assert response.status_code == 200
         
         # 6. Verify token is invalidated
-        response = client.get(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.get("/auth/me")
         assert response.status_code == 401
     
     def test_admin_workflow(self, client, admin_user_data, test_user_data):

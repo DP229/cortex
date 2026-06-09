@@ -418,7 +418,7 @@ class TestRootServicesDiscovery:
 
     def test_discover_project_areas(self):
         # Simple non-namespaced XML to match regex-based fallback parser
-        mock_catalog = '''<ServiceProviderCatalog>
+        mock_catalog = '''<ServiceProviderCatalog xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
     <ServiceProvider>
         <title>FastBrake</title>
         <description>FastBrake requirements project</description>

@@ -162,6 +162,11 @@ class AuthManager:
         db = get_database_manager()
 
         with db.get_session() as session:
+            # Validate email format
+            from cortex.security.validation import SecurityValidator
+            if not SecurityValidator.validate_email(email):
+                raise ValueError(f"Invalid email format: {email}")
+
             # Check if user exists
             existing = session.query(User).filter(User.email == email).first()
             if existing:

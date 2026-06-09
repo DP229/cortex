@@ -84,16 +84,7 @@ async def qualification_status() -> dict:
 @router.get("/tor")
 async def get_tor_document(format: str = Query("markdown", description="Output format: markdown or json")) -> dict:
     engine = _get_engine()
-    last = engine.get_last_run()
-    if last is None:
-        engine = QualificationEngine()
-        evidence = engine.qualify(sil_target="SIL2")
-    else:
-        engine._qualify_silent("SIL2")  # regenerate for display
-        global _engine
-        _engine = QualificationEngine()
-        evidence = _engine.qualify(sil_target="SIL2")
-
+    evidence = engine.qualify(sil_target="SIL2")
     return {
         "format": format,
         "content": evidence.tor_markdown(),

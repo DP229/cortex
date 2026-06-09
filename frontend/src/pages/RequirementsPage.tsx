@@ -142,7 +142,7 @@ export default function RequirementsPage() {
     try {
       const formData = new FormData()
       formData.append('file', importFile)
-      const resp = await fetch('/api/requirements/import-document', {
+      const resp = await fetch('/api/requirements/import-document/', {
         method: 'POST', credentials: 'include', body: formData,
       })
       const data = await resp.json()

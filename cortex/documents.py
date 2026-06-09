@@ -116,10 +116,14 @@ class DocumentManager:
         Path(self.storage_path).mkdir(parents=True, exist_ok=True)
 
     def _get_db(self) -> Session:
-        """Get database session"""
+        """Get database session (entered immediately, not a context manager)"""
         if self.db:
             return self.db
-        return get_session()
+        # Enter the context manager and return the session; track it for cleanup
+        if not hasattr(self, "_active_session") or self._active_session is None:
+            cm = get_session()
+            self._active_session = cm.__enter__()
+        return self._active_session
 
     def _generate_checksum(self, data: bytes) -> str:
         """Generate SHA-256 checksum for integrity verification"""
@@ -193,7 +197,9 @@ class DocumentManager:
             checksum = self._generate_checksum(content)
 
             # Encrypt content
-            encrypted_data = self.encryption.encrypt_bytes(content)
+            encrypted = self.encryption.encrypt_bytes(content)
+            nonce_size = len(encrypted["nonce"])
+            encrypted_data = bytes([nonce_size]) + encrypted["nonce"] + encrypted["ciphertext"]
 
             # Get database session
             db = self._get_db()
@@ -322,10 +328,15 @@ class DocumentManager:
                 return None
 
             with open(document_path, 'rb') as f:
-                encrypted_data = f.read()
+                nonce_size = f.read(1)[0]
+                nonce = f.read(nonce_size)
+                ciphertext = f.read()
 
             # Decrypt
-            content = self.encryption.decrypt_bytes(encrypted_data)
+            content = self.encryption.decrypt_bytes({
+                "nonce": nonce,
+                "ciphertext": ciphertext
+            })
 
             # Verify checksum — fail-safe: integrity mismatch must be logged
             computed_checksum = self._generate_checksum(content)
@@ -406,7 +417,9 @@ class DocumentManager:
             # Read and encrypt new content
             content = file_data.read()
             checksum = self._generate_checksum(content)
-            encrypted_data = self.encryption.encrypt_bytes(content)
+            encrypted = self.encryption.encrypt_bytes(content)
+            nonce_size = len(encrypted["nonce"])
+            encrypted_data = bytes([nonce_size]) + encrypted["nonce"] + encrypted["ciphertext"]
 
             # Create new version
             new_version = document.current_version + 1

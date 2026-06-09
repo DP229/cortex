@@ -33,15 +33,26 @@ class SecurityValidator:
     
     # SQL injection patterns (case-insensitive)
     SQL_INJECTION_PATTERNS = [
-        re.compile(r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE)\b)", re.IGNORECASE),
-        re.compile(r"(\b(UNION|INTERSECT|EXCEPT)\b)", re.IGNORECASE),
+        # SQL keywords only flag when appearing in injection context:
+        # preceded/followed by a quote, semicolon, comment marker or equals sign.
+        # This prevents plain English words like "select", "create", "delete"
+        # from triggering false positives in natural-language inputs.
+        re.compile(r"(['\";]\s*(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE)\b)", re.IGNORECASE),
+        re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE)\b.*;\s*(--|#)", re.IGNORECASE),
+        # UNION-based injection always suspicious in input fields
+        re.compile(r"(\bUNION\b\s+(ALL\s+)?\bSELECT\b)", re.IGNORECASE),
+        # Tautology attacks: OR 1=1, AND 1=1
         re.compile(r"(\b(OR|AND)\s+\d+\s*=\s*\d+)", re.IGNORECASE),
+        # Comment-terminated statements
         re.compile(r"(;\s*--)", re.IGNORECASE),
-        re.compile(r"(\/\*.*\*\/)", re.IGNORECASE),
-        re.compile(r"(\b(EXEC|EXECUTE)\b)", re.IGNORECASE),
+        re.compile(r"(\/\*.*?\*\/)", re.IGNORECASE),
+        # Stored procedure / OS command execution
+        re.compile(r"(\b(EXEC|EXECUTE)\s*\()", re.IGNORECASE),
         re.compile(r"(xp_cmdshell)", re.IGNORECASE),
+        # Encoding / obfuscation functions used in injection
         re.compile(r"(CONCAT\s*\()", re.IGNORECASE),
         re.compile(r"(CHAR\s*\()", re.IGNORECASE),
+        # Quote-bounded OR/AND tautologies
         re.compile(r"('\s*(OR|AND)\s*')", re.IGNORECASE),
     ]
     

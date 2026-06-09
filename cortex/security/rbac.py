@@ -18,6 +18,7 @@ from typing import List, Dict, Set, Optional
 from enum import Enum
 from uuid import UUID
 
+from fastapi import Depends
 import structlog
 
 logger = structlog.get_logger()
@@ -277,6 +278,8 @@ def require_permission(permission: str):
         )
         return current_user
 
+    return permission_checker
+
 
 def get_user_permissions(user) -> set:
     """Return the set of Permission objects for a user's role."""
@@ -288,5 +291,3 @@ def get_user_permissions(user) -> set:
         return {Permission(p) for p in permissions}
     perm_strings = manager.get_permissions(user.role)
     return {Permission(p) for p in perm_strings}
-
-    return permission_checker

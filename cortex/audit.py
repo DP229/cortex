@@ -138,7 +138,10 @@ class AuditLogger:
         """Get database session"""
         if self.db:
             return self.db
-        return get_session()
+        if not hasattr(self, "_active_session") or self._active_session is None:
+            cm = get_session()
+            self._active_session = cm.__enter__()
+        return self._active_session
 
     def log(self, entry: AuditEntry) -> Optional[UUID]:
         """
@@ -189,6 +192,41 @@ class AuditLogger:
                     session.commit()
                     session.refresh(audit_record)
                     audit_id = UUID(audit_record.id)
+
+            # Call immutable audit logger
+            try:
+                import os
+                from cortex.security.immutable_audit import ImmutableAuditLogger
+                action_str = entry.action.value if isinstance(entry.action, AuditAction) else str(entry.action)
+                
+                # Simple mapper for action to event type
+                event_type = action_str
+                if "login" in action_str:
+                    event_type = "auth.failure" if "failed" in action_str else "auth.success"
+                elif "logout" in action_str:
+                    event_type = "auth.logout"
+                elif "approve" in action_str:
+                    event_type = "compliance.approval"
+                elif "create" in action_str or "write" in action_str:
+                    event_type = "data.write"
+                elif "delete" in action_str:
+                    event_type = "data.delete"
+                elif "read" in action_str:
+                    event_type = "data.read"
+                
+                imm_logger = ImmutableAuditLogger(log_dir=os.path.expanduser("~/.cortex/audit"))
+                imm_logger.log(
+                    event_type=event_type,
+                    action=action_str,
+                    actor_id=str(entry.user_id) if entry.user_id else None,
+                    resource_type=entry.resource_type,
+                    resource_id=str(entry.resource_id) if entry.resource_id else None,
+                    actor_ip=entry.ip_address,
+                    actor_user_agent=entry.user_agent,
+                    metadata=entry.details or {},
+                )
+            except Exception as ex:
+                logger.error("immutable_audit_log_failed", error=str(ex))
 
             logger.info(
                 "audit_logged",
@@ -514,7 +552,10 @@ class RailwayIncidentManager:
     def _get_db(self) -> Session:
         if self.db:
             return self.db
-        return get_session()
+        if not hasattr(self, "_active_session") or self._active_session is None:
+            cm = get_session()
+            self._active_session = cm.__enter__()
+        return self._active_session
 
     def create_incident(
         self,

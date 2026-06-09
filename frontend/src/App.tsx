@@ -13,6 +13,7 @@ import {
   BookOpen,
   FileArchive,
   ShieldCheck,
+  MessageSquare,
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './pages/Dashboard'
@@ -27,6 +28,8 @@ import KnowledgeBase from './pages/KnowledgeBase'
 import IncidentsPage from './pages/IncidentsPage'
 import DocumentsPage from './pages/DocumentsPage'
 import QualificationPage from './pages/QualificationPage'
+import AgentChat from './pages/AgentChat'
+import SettingsPage from './pages/SettingsPage'
 import './App.css'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -44,6 +47,9 @@ function Sidebar() {
       <div className="sidebar-nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <LayoutDashboard size={16} /> Dashboard
+        </NavLink>
+        <NavLink to="/chat" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <MessageSquare size={16} /> AI Assistant
         </NavLink>
         <NavLink to="/assets" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Box size={16} /> Assets
@@ -80,9 +86,9 @@ function Sidebar() {
         <div className="nav-user-info">
           <span className="text-muted text-sm">{user?.role?.replace('_', ' ')}</span>
         </div>
-        <button className="nav-item" style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+        <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Settings size={16} /> Settings
-        </button>
+        </NavLink>
         <button className="nav-item" onClick={logout} style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', color: '#ef5350' }}>
           <LogOut size={16} /> Logout
         </button>
@@ -104,6 +110,7 @@ export default function App() {
                 <main className="main-content">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    <Route path="/chat" element={<AgentChat />} />
                     <Route path="/assets" element={<AssetsPage />} />
                     <Route path="/requirements" element={<RequirementsPage />} />
                     <Route path="/soups" element={<SoupPage />} />
@@ -114,6 +121,7 @@ export default function App() {
                     <Route path="/incidents" element={<IncidentsPage />} />
                     <Route path="/documents" element={<DocumentsPage />} />
                     <Route path="/qualification" element={<QualificationPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

@@ -1,8 +1,18 @@
 const BASE = '/api'
 
+const NO_TRAILING_SLASH_PREFIXES = ['/auth/', '/audit/', '/kb/', '/qualification/', '/v2/qualification/', '/chat']
+
+function withTrailingSlash(path: string): string {
+  const [pathPart, queryPart] = path.split('?')
+  if (pathPart.endsWith('/')) return path
+  if (NO_TRAILING_SLASH_PREFIXES.some(p => pathPart.startsWith(p))) return path
+  const segments = pathPart.split('/').filter(Boolean)
+  if (segments.length !== 1) return path
+  return queryPart ? `${pathPart}/?${queryPart}` : `${pathPart}/`
+}
+
 async function handleRes(res: Response) {
   if (res.status === 401) {
-    // Cookie expired or invalid — redirect to login
     window.location.href = '/login'
     throw new Error('Unauthorized')
   }
@@ -15,10 +25,10 @@ async function handleRes(res: Response) {
 
 export const api = {
   get: (path: string) =>
-    fetch(`${BASE}${path}`, { credentials: 'include' })
+    fetch(`${BASE}${withTrailingSlash(path)}`, { credentials: 'include' })
       .then(handleRes),
   post: (path: string, body: object) =>
-    fetch(`${BASE}${path}`, {
+    fetch(`${BASE}${withTrailingSlash(path)}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -26,7 +36,7 @@ export const api = {
     })
       .then(handleRes),
   put: (path: string, body?: object) =>
-    fetch(`${BASE}${path}`, {
+    fetch(`${BASE}${withTrailingSlash(path)}`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -34,7 +44,7 @@ export const api = {
     })
       .then(handleRes),
   patch: (path: string, body: object) =>
-    fetch(`${BASE}${path}`, {
+    fetch(`${BASE}${withTrailingSlash(path)}`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -42,7 +52,7 @@ export const api = {
     })
       .then(handleRes),
   del: (path: string) =>
-    fetch(`${BASE}${path}`, {
+    fetch(`${BASE}${withTrailingSlash(path)}`, {
       method: 'DELETE',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

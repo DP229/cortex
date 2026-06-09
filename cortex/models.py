@@ -600,6 +600,7 @@ class KnowledgeArticle(UUIDMixin, TimestampMixin, Base):
     status = Column(String(20), default="published", nullable=False)
     source = Column(String(255), nullable=True)
     references = Column(JSON, nullable=True)
+    asset_id = Column(String(36), ForeignKey("railway_assets.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
     approved_by = Column(String(36), ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
@@ -608,10 +609,12 @@ class KnowledgeArticle(UUIDMixin, TimestampMixin, Base):
         Index('idx_kb_title', 'title'),
         Index('idx_kb_category', 'category'),
         Index('idx_kb_status', 'status'),
+        Index('idx_kb_asset', 'asset_id'),
     )
 
     def __repr__(self):
         return f"<KnowledgeArticle {self.title[:40]}>"
+
 
 
 # === Audit Logging (Merkle tree verifiable — EN 50128) ===
@@ -837,12 +840,12 @@ def initialize_default_data(session):
         session.add(policy)
 
     # Create default admin user
-    from cortex.security.encryption import hash_password
+    from cortex.security.encryption import hash_password, encrypt_field
     admin = User(
         id=str(uuid4()),
         email="admin@cortex.dev",
         password_hash=hash_password("AdminPass12!"),
-        full_name_encrypted="Railway Admin",
+        full_name_encrypted=encrypt_field("Railway Admin"),
         role=UserRole.ADMIN.value,
         is_active=True,
     )
