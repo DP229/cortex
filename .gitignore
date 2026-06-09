@@ -18,3 +18,7 @@ htmlcov/
 .pytest_cache/
 .cortex/
 session-ses_*.md
+
+# Diagnostic logs and one-shot repair scripts from local dev sessions
+*.log
+_fix_*.py
