@@ -1,0 +1,122 @@
+# Tool Verification Report (TVR)
+# Cortex v1.0.0
+
+**Report generated:** 2026-06-10 01:42:45
+**TVP version:** 1.0.0
+
+**Execution period:**
+- Start: 2026-06-10 01:34
+- End: 2026-06-10 01:42
+
+## Environment
+
+- **python_version:** 3.14.4 (main, Apr  8 2026, 04:02:31) [GCC 15.2.0]
+- **os:** 
+- **hardware:** 
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Total Tests | 64 |
+| Passed | 59 |
+| Failed | 5 |
+| Not Executed | 0 |
+| Blocked | 0 |
+| Pass Rate | 92.2% |
+
+**Overall Result:** FAIL
+**Qualification Status:** NOT_QUALIFIED
+
+**Conditions:**
+- Mandatory requirement(s) failed: TOR-OP-004
+
+## Failed Tests
+
+### TVP-ANL-010 (TOR: TOR-OP-004)
+**Comments:** SIL=SIL2
+
+### TVP-ANL-011 (TOR: TOR-OP-004)
+**Comments:** SIL=SIL2
+
+### TVP-ANL-012 (TOR: TOR-OP-004)
+**Comments:** SIL=SIL2
+
+### TVP-INS-055 (TOR: TOR-QA-001)
+**Comments:** SIL=SIL1
+
+### TVP-INS-056 (TOR: TOR-QA-001)
+**Comments:** SIL=SIL1
+
+## Detailed Results
+
+| Test ID | TOR Req | Result | Executor |
+|---------|---------|--------|----------|
+| TVP-INS-001 | TOR-OP-001 | ✅ pass | qualification_engine |
+| TVP-INS-002 | TOR-OP-001 | ✅ pass | qualification_engine |
+| TVP-INS-003 | TOR-OP-001 | ✅ pass | qualification_engine |
+| TVP-TST-004 | TOR-OP-002 | ✅ pass | qualification_engine |
+| TVP-TST-005 | TOR-OP-002 | ✅ pass | qualification_engine |
+| TVP-TST-006 | TOR-OP-002 | ✅ pass | qualification_engine |
+| TVP-INS-007 | TOR-OP-003 | ✅ pass | qualification_engine |
+| TVP-INS-008 | TOR-OP-003 | ✅ pass | qualification_engine |
+| TVP-INS-009 | TOR-OP-003 | ✅ pass | qualification_engine |
+| TVP-ANL-010 | TOR-OP-004 | ❌ fail | qualification_engine |
+| TVP-ANL-011 | TOR-OP-004 | ❌ fail | qualification_engine |
+| TVP-ANL-012 | TOR-OP-004 | ❌ fail | qualification_engine |
+| TVP-TST-013 | TOR-FN-001 | ✅ pass | qualification_engine |
+| TVP-TST-014 | TOR-FN-001 | ✅ pass | qualification_engine |
+| TVP-TST-015 | TOR-FN-001 | ✅ pass | qualification_engine |
+| TVP-TST-016 | TOR-FN-002 | ✅ pass | qualification_engine |
+| TVP-TST-017 | TOR-FN-002 | ✅ pass | qualification_engine |
+| TVP-TST-018 | TOR-FN-002 | ✅ pass | qualification_engine |
+| TVP-TST-019 | TOR-FN-003 | ✅ pass | qualification_engine |
+| TVP-TST-020 | TOR-FN-003 | ✅ pass | qualification_engine |
+| TVP-TST-021 | TOR-FN-003 | ✅ pass | qualification_engine |
+| TVP-TST-022 | TOR-FN-004 | ✅ pass | qualification_engine |
+| TVP-TST-023 | TOR-FN-004 | ✅ pass | qualification_engine |
+| TVP-TST-024 | TOR-FN-004 | ✅ pass | qualification_engine |
+| TVP-TST-025 | TOR-FN-005 | ✅ pass | qualification_engine |
+| TVP-TST-026 | TOR-FN-005 | ✅ pass | qualification_engine |
+| TVP-TST-027 | TOR-FN-006 | ✅ pass | qualification_engine |
+| TVP-TST-028 | TOR-FN-006 | ✅ pass | qualification_engine |
+| TVP-ANL-029 | TOR-FN-007 | ✅ pass | qualification_engine |
+| TVP-ANL-030 | TOR-FN-007 | ✅ pass | qualification_engine |
+| TVP-TST-031 | TOR-FN-008 | ✅ pass | qualification_engine |
+| TVP-TST-032 | TOR-FN-008 | ✅ pass | qualification_engine |
+| TVP-TST-033 | TOR-FN-008 | ✅ pass | qualification_engine |
+| TVP-TST-034 | TOR-PF-001 | ✅ pass | qualification_engine |
+| TVP-TST-035 | TOR-PF-001 | ✅ pass | qualification_engine |
+| TVP-TST-036 | TOR-PF-002 | ✅ pass | qualification_engine |
+| TVP-TST-037 | TOR-PF-003 | ✅ pass | qualification_engine |
+| TVP-TST-038 | TOR-PF-003 | ✅ pass | qualification_engine |
+| TVP-TST-039 | TOR-IF-001 | ✅ pass | qualification_engine |
+| TVP-TST-040 | TOR-IF-001 | ✅ pass | qualification_engine |
+| TVP-TST-041 | TOR-IF-001 | ✅ pass | qualification_engine |
+| TVP-INS-042 | TOR-IF-002 | ✅ pass | qualification_engine |
+| TVP-INS-043 | TOR-IF-002 | ✅ pass | qualification_engine |
+| TVP-INS-044 | TOR-IF-002 | ✅ pass | qualification_engine |
+| TVP-TST-045 | TOR-IF-003 | ✅ pass | qualification_engine |
+| TVP-TST-046 | TOR-IF-003 | ✅ pass | qualification_engine |
+| TVP-INS-047 | TOR-EN-001 | ✅ pass | qualification_engine |
+| TVP-INS-048 | TOR-EN-001 | ✅ pass | qualification_engine |
+| TVP-INS-049 | TOR-EN-001 | ✅ pass | qualification_engine |
+| TVP-TST-050 | TOR-EN-002 | ✅ pass | qualification_engine |
+| TVP-TST-051 | TOR-EN-002 | ✅ pass | qualification_engine |
+| TVP-TST-052 | TOR-EN-002 | ✅ pass | qualification_engine |
+| TVP-INS-053 | TOR-EN-003 | ✅ pass | qualification_engine |
+| TVP-INS-054 | TOR-EN-003 | ✅ pass | qualification_engine |
+| TVP-INS-055 | TOR-QA-001 | ❌ fail | qualification_engine |
+| TVP-INS-056 | TOR-QA-001 | ❌ fail | qualification_engine |
+| TVP-INS-057 | TOR-QA-002 | ✅ pass | qualification_engine |
+| TVP-INS-058 | TOR-QA-002 | ✅ pass | qualification_engine |
+| TVP-INS-059 | TOR-QA-002 | ✅ pass | qualification_engine |
+| TVP-TST-060 | TOR-QA-003 | ✅ pass | qualification_engine |
+| TVP-TST-061 | TOR-QA-003 | ✅ pass | qualification_engine |
+| TVP-INS-062 | TOR-QA-004 | ✅ pass | qualification_engine |
+| TVP-INS-063 | TOR-QA-004 | ✅ pass | qualification_engine |
+| TVP-INS-064 | TOR-QA-004 | ✅ pass | qualification_engine |
+
+---
+
+*Report generated by Cortex Tool Qualification Kit*
