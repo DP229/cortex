@@ -1,0 +1,14 @@
+{
+  "last_export_at": "2026-06-09T20:25:46.595646Z",
+  "cortex_reqif": "/home/durga/Documents/cortex/cortex-demo/kavach-rtm.reqif",
+  "cortex_entities": {
+    "exists": true,
+    "size_bytes": 90241,
+    "spec_objects": 94,
+    "spec_relations": 38,
+    "specifications": 4,
+    "datatypes": 4
+  },
+  "elm_enabled": "false",
+  "notes": "Production ELM sync requires ELM_ENABLED=true and OIDC credentials in cortex/ibm_elm/config.py"
+}

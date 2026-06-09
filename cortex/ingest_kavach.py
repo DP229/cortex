@@ -717,9 +717,10 @@ def get_doc_meta(filename: str) -> dict:
 
 # ─── main ingestion ───────────────────────────────────────────────────────────
 
-def main():
+def main(skip_existing: bool = False):
     print("=" * 60)
     print("Kavach Data Ingestion — Cortex Platform")
+    print(f"Mode: {'skip-existing' if skip_existing else 'full'}")
     print("=" * 60)
 
     db = get_database_manager()
@@ -966,4 +967,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    skip_existing = "--skip-existing" in sys.argv
+    main(skip_existing=skip_existing)

@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "jts_url": "https://jts.example.com/jts",
+  "rm_url": "https://jts.example.com/rm",
+  "ccm_url": "https://jts.example.com/ccm",
+  "qm_url": "https://jts.example.com/qm",
+  "gcm_url": "https://jts.example.com/gcm",
+  "project_area_name": "KAVACH_ATP",
+  "project_area_uuid": "<set after first discovery>",
+  "auth_mode": "oidc",
+  "oidc_issuer_url": "https://auth.example.com/oauth2",
+  "oidc_client_id": "<from secure vault>",
+  "oidc_client_secret_secret_ref": "vault://elm/client_secret",
+  "verify_ssl": true,
+  "dry_run_default": true,
+  "max_sync_batch": 100,
+  "note": "All OIDC secrets must be stored in a secret manager, not in this file"
+}

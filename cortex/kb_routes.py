@@ -288,3 +288,131 @@ async def search_articles(
         ).order_by(KnowledgeArticle.created_at.desc()).limit(limit).all()
         response = [_to_response(r) for r in results]
     return response
+
+
+# === Semantic Search ===
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
+    top_k: int = Field(default=5, ge=1, le=50, description="Number of results")
+    source_type: Optional[str] = Field(default=None, description="Filter by 'kb_article' or 'requirement'")
+
+
+class SemanticSearchResult(BaseModel):
+    id: str
+    source_type: str
+    source_id: str
+    text_preview: str
+    score: float
+
+
+class SemanticSearchResponse(BaseModel):
+    query: str
+    results: List[SemanticSearchResult]
+    model: str
+    dim: int
+    total_indexed: int
+
+
+class SemanticStatsResponse(BaseModel):
+    model: str
+    dim: int
+    total_vectors: int
+    by_type: dict
+
+
+@router.post("/semantic-search", response_model=SemanticSearchResponse, tags=["Knowledge Base — Semantic Search"])
+async def semantic_search(
+    req: SemanticSearchRequest,
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+):
+    """
+    Vector-based semantic search over knowledge articles and requirements.
+
+    Uses sentence-transformers (all-MiniLM-L6-v2) for embedding generation
+    and SQLite for vector storage. No external Qdrant instance required.
+
+    For production scale, set up Qdrant (see cortex/memory_qdrant.py).
+    """
+    from cortex.semantic_search import SemanticSearchEngine
+
+    require_permission(current_user, Permission.REQUIREMENT_READ)
+
+    try:
+        engine = SemanticSearchEngine()
+        db = get_database_manager()
+        with db.get_session() as session:
+            results = engine.search(session, req.query, top_k=req.top_k, source_filter=req.source_type)
+            stats = engine.stats(session)
+    except Exception as e:
+        logger.error("semantic_search_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Semantic search failed: {str(e)}"
+        )
+
+    log_audit(
+        action=AuditAction.KB_SEARCH.value if hasattr(AuditAction, "KB_SEARCH") else "semantic_search",
+        user_id=current_user.id,
+        resource_type="knowledge_base",
+        resource_id=None,
+        ip_address=request.client.host if request.client else "unknown",
+        details={"query": req.query, "top_k": req.top_k, "result_count": len(results)}
+    )
+
+    return SemanticSearchResponse(
+        query=req.query,
+        results=[SemanticSearchResult(**r) for r in results],
+        model=stats["model"],
+        dim=stats["dim"],
+        total_indexed=stats["total_vectors"],
+    )
+
+
+@router.post("/semantic-index", tags=["Knowledge Base — Semantic Search"])
+async def semantic_index(
+    request: Request,
+    current_user: User = Depends(get_current_active_user_from_request),
+):
+    """
+    Build (or rebuild) the semantic search index from all KB articles
+    and requirements. Idempotent — existing entries with the same text
+    content are skipped.
+    """
+    from cortex.semantic_search import SemanticSearchEngine
+
+    require_permission(current_user, Permission.REQUIREMENT_WRITE)
+
+    try:
+        engine = SemanticSearchEngine()
+        db = get_database_manager()
+        with db.get_session() as session:
+            counts = engine.index_all(session)
+    except Exception as e:
+        logger.error("semantic_index_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Indexing failed: {str(e)}"
+        )
+
+    return {
+        "status": "indexed",
+        "indexed": counts,
+        "model": engine.MODEL_NAME if engine.model else "fallback-hash",
+    }
+
+
+@router.get("/semantic-stats", response_model=SemanticStatsResponse, tags=["Knowledge Base — Semantic Search"])
+async def semantic_stats(
+    current_user: User = Depends(get_current_active_user_from_request),
+):
+    """Return statistics about the semantic search index."""
+    from cortex.semantic_search import SemanticSearchEngine
+
+    require_permission(current_user, Permission.REQUIREMENT_READ)
+    engine = SemanticSearchEngine()
+    db = get_database_manager()
+    with db.get_session() as session:
+        stats = engine.stats(session)
+    return SemanticStatsResponse(**stats)

@@ -1,0 +1,12 @@
+[Unit]
+Description=KAVACH ATP Knowledge Ingestion Timer (Hourly)
+Documentation=https://github.com/DP229/cortex/blob/prototype/scripts/ingest_kavach_cron.sh
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

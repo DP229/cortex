@@ -1,0 +1,229 @@
+{
+  "generated_at": "2026-06-09T20:56:36.871408Z",
+  "total": 28,
+  "passed": 27,
+  "failed": 1,
+  "checks": [
+    {
+      "page": "Dashboard - Requirements count",
+      "endpoint": "/requirements/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 5,
+      "count": 43
+    },
+    {
+      "page": "Dashboard - SOUPs count",
+      "endpoint": "/soups/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 4
+    },
+    {
+      "page": "Dashboard - Test records count",
+      "endpoint": "/test-records/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2,
+      "count": 43
+    },
+    {
+      "page": "Dashboard - Incidents count",
+      "endpoint": "/audit/incidents",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 1
+    },
+    {
+      "page": "Requirements - List all",
+      "endpoint": "/requirements/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 3,
+      "count": 43
+    },
+    {
+      "page": "SOUPs - List all",
+      "endpoint": "/soups/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 4
+    },
+    {
+      "page": "Assets - List",
+      "endpoint": "/assets/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 5
+    },
+    {
+      "page": "Test Records - List",
+      "endpoint": "/test-records/",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2,
+      "count": 43
+    },
+    {
+      "page": "RTM - Trace for KAV-M-003",
+      "endpoint": "/requirements/94c30023-ce08-40bf-895c-bdc34e1a918e",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 5,
+      "has_requirement": true,
+      "has_citations": true,
+      "has_test_records": true
+    },
+    {
+      "page": "RTM - Citation list",
+      "endpoint": "/requirements/citations",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2,
+      "count": 30
+    },
+    {
+      "page": "Documents - List",
+      "endpoint": "/documents/",
+      "ok": false,
+      "status": 500,
+      "elapsed_ms": 1,
+      "error": "{\"detail\":\"Failed to list documents\"}"
+    },
+    {
+      "page": "KB - List articles",
+      "endpoint": "/kb/articles?limit=200",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 6,
+      "count": 158
+    },
+    {
+      "page": "KB - Search (UHF radio)",
+      "endpoint": "/kb/search?q=UHF+radio",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 3,
+      "count": 7
+    },
+    {
+      "page": "KB - Categories",
+      "endpoint": "/kb/categories",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 9
+    },
+    {
+      "page": "Audit Log - First 50",
+      "endpoint": "/audit/logs?limit=50",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2,
+      "count": 50
+    },
+    {
+      "page": "Compliance Report",
+      "endpoint": "/audit/reports/compliance",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 3
+    },
+    {
+      "page": "Incidents - List",
+      "endpoint": "/audit/incidents",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 1,
+      "count": 1
+    },
+    {
+      "page": "Qualification - Status",
+      "endpoint": "/v2/qualification/status",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 0
+    },
+    {
+      "page": "Qualification - TOR (markdown)",
+      "endpoint": "/v2/qualification/tor?format=markdown",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2
+    },
+    {
+      "page": "Qualification - TVR (markdown)",
+      "endpoint": "/v2/qualification/tvr?format=markdown",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2
+    },
+    {
+      "page": "Qualification - TVP (markdown)",
+      "endpoint": "/v2/qualification/tvp?format=markdown",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 2
+    },
+    {
+      "page": "Semantic - Stats",
+      "endpoint": "/kb/semantic-stats",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 5975
+    },
+    {
+      "page": "Semantic - Search RFID",
+      "endpoint": "/kb/semantic-search",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 6179,
+      "has_results": true,
+      "has_model": true,
+      "has_dim": true,
+      "has_total_indexed": true
+    },
+    {
+      "page": "ELM - Health",
+      "endpoint": "/elm/health",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 7
+    },
+    {
+      "page": "ELM - Config",
+      "endpoint": "/elm/config",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 15
+    },
+    {
+      "page": "ELM - Sync jobs",
+      "endpoint": "/elm/sync-jobs",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 6
+    },
+    {
+      "page": "RTM - Export ReqIF",
+      "endpoint": "/requirements/export-reqif",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 14,
+      "has_data": true
+    },
+    {
+      "page": "AI Chat",
+      "endpoint": "/chat",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 8106,
+      "response_len": 394,
+      "sources": 3
+    }
+  ]
+}
